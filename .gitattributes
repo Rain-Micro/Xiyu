@@ -1,0 +1,20 @@
+# 跨平台换行符规范：仓库内一律 LF，Windows 专属脚本用 CRLF
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制资源
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.moc3 binary
+*.model3.json text
+*.wav binary
+*.mp3 binary

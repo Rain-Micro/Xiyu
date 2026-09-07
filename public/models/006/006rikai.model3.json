@@ -1,0 +1,69 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "006rikai.moc3",
+		"Textures": [
+			"textures/texture_00.png"
+		],
+		"Physics": "006rikai.physics3.json",
+		"DisplayInfo": "006rikai.cdi3.json",
+		"Expressions": [
+			{
+				"Name": "驚き",
+				"File": "Surprise.exp3.json"
+			},
+			{
+				"Name": "青ざめ",
+				"File": "Shock.exp3.json"
+			},
+			{
+				"Name": "汗",
+				"File": "Sweat.exp3.json"
+			},
+			{
+				"Name": "狂気",
+				"File": "Madness.exp3.json"
+			},
+			{
+				"Name": "ハート目",
+				"File": "HeartEyes.exp3.json"
+			},
+			{
+				"Name": "スター目",
+				"File": "StarEyes.exp3.json"
+			},
+			{
+				"Name": "ぐるぐる目",
+				"File": "Vertigo.exp3.json"
+			},
+			{
+				"Name": "照れ",
+				"File": "ParamCheek.exp3.json"
+			},
+			{
+				"Name": "怒る",
+				"File": "Angry.exp3.json"
+			},
+			{
+				"Name": "困る",
+				"File": "Bothered.exp3.json"
+			},
+			{
+				"Name": "笑顔",
+				"File": "Smile.exp3.json"
+			},
+			{
+				"Name": "ぬいぐるみoff",
+				"File": "ArmDifference.exp3.json"
+			}
+		]
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": []
+		}
+	],
+	"HitAreas": []
+}

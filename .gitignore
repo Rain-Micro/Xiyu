@@ -1,0 +1,32 @@
+# 依赖
+node_modules/
+server/node_modules/
+
+# 构建产物
+dist/
+dist-electron/
+server/dist/
+release/
+
+# 环境变量与密钥（只入库 .env.example）
+.env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+!server/.env.example
+
+# 运行期数据
+*.log
+app-debug.log
+.raticket/
+
+# 编辑器与工具
+.zcode/
+.vscode/
+.idea/
+*.swp
+
+# 系统垃圾
+Thumbs.db
+.DS_Store
