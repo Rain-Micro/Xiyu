@@ -6,6 +6,7 @@ import { useAuthStore, useSettingsStore, useUIStore, useCharacterStore } from '@
 import { db } from '@/services/db'
 import { api, getToken } from '@/services/apiClient'
 import { fetchMe } from '@/services/authAPI'
+import { checkForUpdate } from '@/services/updateService'
 import WelcomePage from '@/pages/WelcomePage'
 import MainPage from '@/pages/MainPage'
 import ForgetPasswordPage from '@/pages/ForgetPasswordPage'
@@ -44,6 +45,7 @@ function App() {
     setRefreshConfirmOpen,
     setSettingsOpen,
     setTutorialOpen,
+    addNotification,
   } = useUIStore()
   const [showSecondConfirm, setShowSecondConfirm] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -126,6 +128,26 @@ function App() {
         }
       })
   }, [isLoggedIn])
+
+  // 版本检查（仅提示式）：静默比对远程最新版本，落后则通知用户前往下载页
+  useEffect(() => {
+    checkForUpdate()
+      .then((r) => {
+        if (r?.hasUpdate) {
+          addNotification({
+            id: `app-update-${Date.now()}`,
+            type: 'info',
+            title: `发现新版本 v${r.latest}`,
+            message: '当前版本较旧，正在为你打开下载页面…',
+            timestamp: Date.now(),
+            read: false,
+            duration: 8000,
+          })
+          setTimeout(() => window.open(r.url, '_blank'), 1500)
+        }
+      })
+      .catch(() => { /* 静默失败 */ })
+  }, [])
 
   // 主题切换
   useEffect(() => {
