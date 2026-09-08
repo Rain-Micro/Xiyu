@@ -17,5 +17,6 @@ host:
 
 container:
   privileged: false
+  network: qiyu-ci_default   # job 容器与 Gitea 同网络，克隆走内网别名
   valid_volumes:
     - /workspace

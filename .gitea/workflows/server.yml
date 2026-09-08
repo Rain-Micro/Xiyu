@@ -21,7 +21,7 @@ jobs:
           git init -q .
           git remote remove origin 2>/dev/null || true
           git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-          git fetch -q --depth 1 "http://qiyu:${GITHUB_TOKEN}@${GITHUB_SERVER_URL#http://}/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git fetch -q --depth 1 "http://qiyu:${{ secrets.CI_TOKEN }}@${GITHUB_SERVER_URL#http://}/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
           git checkout -q -f FETCH_HEAD
       - name: 安装依赖（npm ci，平台独立安装）
         shell: bash
@@ -46,7 +46,7 @@ jobs:
           git init -q .
           git remote remove origin 2>/dev/null || true
           git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-          git fetch -q --depth 1 "http://qiyu:${GITHUB_TOKEN}@${GITHUB_SERVER_URL#http://}/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git fetch -q --depth 1 "http://qiyu:${{ secrets.CI_TOKEN }}@${GITHUB_SERVER_URL#http://}/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
           git checkout -q -f FETCH_HEAD
       - name: Node 版本（要求主版本 24）
         shell: bash
