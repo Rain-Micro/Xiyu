@@ -37,3 +37,6 @@ Thumbs.db
 
 # Mimosa 安全钩子本地状态
 .mimosa/
+
+# 构建输出（任意输出目录名）
+release2/
