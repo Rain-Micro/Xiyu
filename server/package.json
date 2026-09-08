@@ -38,6 +38,9 @@
     "@types/nodemailer": "^8.0.1",
     "@types/pdf-parse": "^1.1.5",
     "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.57.1",
     "kill-port": "^2.0.1",
     "tsx": "^4.19.2",
     "typescript": "^5.4.5"

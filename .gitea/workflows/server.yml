@@ -28,7 +28,7 @@ jobs:
         run: cd server && npm ci --no-audit --no-fund
       - name: ESLint
         shell: bash
-        run: cd server && npx eslint src --max-warnings 0
+        run: cd server && npx eslint src --ext .ts --max-warnings 0
       - name: TypeScript 类型检查
         shell: bash
         run: cd server && npx tsc --noEmit
