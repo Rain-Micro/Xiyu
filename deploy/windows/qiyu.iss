@@ -18,7 +18,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-OutputDir=..\..\release2
+OutputDir=..\..\release3
 OutputBaseFilename=栖屿数字人平台-Setup-{#MyAppVersion}
 SetupIconFile=..\..\public\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
@@ -33,7 +33,7 @@ Name: "chinesesimplified"; MessagesFile: "D:\Program_files\Inno Setup 6\Language
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "..\..\release2\win-unpacked\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\release3\win-unpacked\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"

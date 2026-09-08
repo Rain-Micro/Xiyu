@@ -40,3 +40,6 @@ Thumbs.db
 
 # 构建输出（任意输出目录名）
 release2/
+
+# 构建输出（任意输出目录名）
+release3/
