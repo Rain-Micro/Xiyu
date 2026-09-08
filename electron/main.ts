@@ -3,7 +3,8 @@ import path from 'path'
 import fs from 'fs'
 
 crashReporter.start({ submitURL: '', uploadToServer: false })
-app.disableHardwareAcceleration()
+// 不再禁用硬件加速：Live2D/WebGL 需 GPU 渲染，软件模拟会导致动画严重卡顿；
+// GPU 进程异常有下方 gpu-process-crashed 日志兜底
 
 const logFile = path.join(app.getPath('userData'), 'app-debug.log')
 function log(msg: string) {

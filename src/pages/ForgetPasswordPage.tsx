@@ -192,10 +192,10 @@ export default function ForgetPasswordPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-md px-4">
-        {/* 小号 Logo */}
+        {/* 小号 Logo（相对路径：打包后经 file:// 加载 dist/ 下资源） */}
         <div className="flex justify-center mb-6">
           <img
-            src="/images/platform/logo.svg"
+            src="./images/platform/logo.svg"
             alt="logo"
             className="w-16 h-16"
           />

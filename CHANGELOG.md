@@ -5,6 +5,18 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.1] - 2026-09-08
+
+客户端修复版（服务端无改动）。
+
+### Fixed 修复
+- 登录页/找回密码页 Logo 打包后不显示（根绝对路径改相对路径）
+- **Live2D 打包后完全不显示**：模型路径探测改为相对路径（file:// 下解析到 dist/models），
+  探测函数由 fetch 改为 XHR（Chromium 在 file:// 下拒绝 fetch 本地文件）
+- 新手教程双教程同屏（全局教程激活期间不再渲染主界面欢迎引导）
+- 动画卡顿：移除 `disableHardwareAcceleration`，恢复 GPU 硬件加速渲染
+- AI 悬浮球过大（60→48px）且遮挡聊天输入栏（聊天页底部停靠自动上抬避让）
+
 ## [2.0.0] - 2026-09-08
 
 架构级重建版本：数据层从已删除的 Supabase 迁移到自建 PostgreSQL，认证体系重建，

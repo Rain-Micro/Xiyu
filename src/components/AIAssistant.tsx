@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Send, ChevronRight, MessageCircle, Headphones, Image as ImageIcon, Square } from 'lucide-react'
 import { useUIStore, useSettingsStore, useCharacterStore, useAuthStore } from '@/stores'
 import { useChatStore } from '@/stores'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { getAssistantSeed } from '@/services/assistantData'
 import { getAssistantResponse } from '@/services/aiChatService'
 import { sendCSMessage } from '@/services/customerServiceAPI'
@@ -94,8 +94,10 @@ const DEMO_MESSAGES: Record<number, { title: string; text: string }> = {
 }
 
 const EDGE_THRESHOLD = 50
-const NORMAL_SIZE = 60
-const MINIMIZED_SIZE = 40
+const NORMAL_SIZE = 48
+const MINIMIZED_SIZE = 36
+// 聊天页底部安全距：悬浮球在此页停靠底部时上抬，避免遮挡输入栏
+const CHAT_BOTTOM_SAFE = 130
 
 function AssistantAvatar({ size = 60, assistantId }: { size?: number; assistantId?: string }) {
   const seed = assistantId ? getAssistantSeed(assistantId) : undefined
@@ -206,13 +208,25 @@ export default function AIAssistant() {
   const bubbleInitialized = useRef(false)
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 初始化悬浮球位置（右下角）
+  // 聊天页(/chat)底部预留输入栏安全距；用 ref 保证拖拽吸附回调读到最新值
+  const location = useLocation()
+  const chatBottomSafe = location.pathname === '/chat' ? CHAT_BOTTOM_SAFE : 0
+  const chatBottomSafeRef = useRef(chatBottomSafe)
+  chatBottomSafeRef.current = chatBottomSafe
+
+  // 初始化悬浮球位置（右下角；聊天页上抬避开输入栏）
   useEffect(() => {
     if (!bubbleInitialized.current) {
-      setBubblePos({ x: window.innerWidth - NORMAL_SIZE - 24, y: window.innerHeight - NORMAL_SIZE - 24 })
+      setBubblePos({ x: window.innerWidth - NORMAL_SIZE - 24, y: window.innerHeight - NORMAL_SIZE - 24 - chatBottomSafeRef.current })
       bubbleInitialized.current = true
     }
   }, [])
+
+  // 进入聊天页时若球停在底部区域则上抬，避免遮挡输入栏
+  useEffect(() => {
+    const maxY = window.innerHeight - NORMAL_SIZE - chatBottomSafeRef.current
+    setBubblePos((prev) => (prev.y > maxY ? { ...prev, y: Math.max(0, maxY) } : prev))
+  }, [chatBottomSafe])
 
   // 监听教程触发
   useEffect(() => {
@@ -951,7 +965,8 @@ export default function AIAssistant() {
             setIsMinimized(true)
           }
         } else if (nearBottom) {
-          y = h - size
+          // 聊天页停靠底部时抬高至输入栏上方，其余页面贴边
+          y = h - size - chatBottomSafeRef.current
           if (!nearLeft && !nearRight) {
             setIsMinimized(true)
           }

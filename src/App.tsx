@@ -44,6 +44,7 @@ function App() {
     isRefreshConfirmOpen,
     setRefreshConfirmOpen,
     setSettingsOpen,
+    isTutorialOpen,
     setTutorialOpen,
     addNotification,
   } = useUIStore()
@@ -370,8 +371,8 @@ function App() {
       </AnimatePresence>
       </div>
 
-      {/* 新用户首次进入主界面引导 */}
-      {isLoggedIn && location.pathname === '/main' && (
+      {/* 新用户首次进入主界面引导（全局教程进行中不渲染，避免双教程同屏） */}
+      {isLoggedIn && location.pathname === '/main' && !isTutorialOpen && (
         <FirstTimeGuide
           storageKey="has_seen_main_interface_guide"
           position="center"

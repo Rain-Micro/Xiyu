@@ -216,17 +216,17 @@ async function resolveLive2DModelPath(file: File): Promise<string | null> {
     // 尝试在 /models/ 下的各子目录中查找 model3.json
     const baseName = modelFileName.replace(/\.model3\.json$/i, '') // e.g. "006rikai"
 
-    // 尝试常见路径模式
+    // 尝试常见路径模式（相对路径：打包后经 file:// 相对 dist/ 解析，dev 下等价于站点根）
     const candidatePaths = [
-      `/models/006/${modelFileName}`,
-      `/models/${baseName}/${modelFileName}`,
-      `/models/${modelFileName}`,
+      `models/006/${modelFileName}`,
+      `models/${baseName}/${modelFileName}`,
+      `models/${modelFileName}`,
     ]
 
-    // 也可以从 vtube.json 文件名推导目录（如 006rikai.vtube.json -> /models/006/）
+    // 也可以从 vtube.json 文件名推导目录（如 006rikai.vtube.json -> models/006/）
     const vtubeBaseName = file.name.replace(/\.vtube\.json$/i, '')
-    if (vtubeBaseName && !candidatePaths.includes(`/models/${vtubeBaseName}/${modelFileName}`)) {
-      candidatePaths.push(`/models/${vtubeBaseName}/${modelFileName}`)
+    if (vtubeBaseName && !candidatePaths.includes(`models/${vtubeBaseName}/${modelFileName}`)) {
+      candidatePaths.push(`models/${vtubeBaseName}/${modelFileName}`)
     }
 
     // 逐个尝试 fetch，找到第一个可访问的路径
@@ -249,19 +249,37 @@ async function resolveLive2DModelPath(file: File): Promise<string | null> {
  * Vite SPA 开发服务器会对未知路径返回 index.html（HTTP 200），因此需要检查 content-type。
  */
 async function isValidModelFile(path: string): Promise<boolean> {
-  try {
-    const resp = await fetch(path, { method: 'GET' })
-    if (!resp.ok) return false
-    const contentType = resp.headers.get('content-type') || ''
-    // model3.json 应返回 application/json 或 text/plain，而不是 text/html（SPA fallback）
-    if (contentType.includes('text/html')) return false
-    // 额外验证：尝试解析为 JSON
-    const text = await resp.text()
-    JSON.parse(text)
-    return true
-  } catch {
-    return false
-  }
+  // 用 XHR 而非 fetch：打包后页面为 file:// 协议，Chromium 拒绝 fetch 本地文件，
+  // 而 XHR 在 webSecurity:false 下放行（dev 的 http 环境两者皆可）
+  return new Promise((resolve) => {
+    try {
+      const xhr = new XMLHttpRequest()
+      xhr.open('GET', path)
+      xhr.onload = () => {
+        // file:// 成功时 status 为 0
+        if (xhr.status !== 200 && xhr.status !== 0) {
+          resolve(false)
+          return
+        }
+        const contentType = xhr.getResponseHeader('content-type') || ''
+        // model3.json 应返回 application/json 或 text/plain，而不是 text/html（SPA fallback）
+        if (contentType.includes('text/html')) {
+          resolve(false)
+          return
+        }
+        try {
+          JSON.parse(xhr.responseText)
+          resolve(true)
+        } catch {
+          resolve(false)
+        }
+      }
+      xhr.onerror = () => resolve(false)
+      xhr.send()
+    } catch {
+      resolve(false)
+    }
+  })
 }
 
 /**
@@ -270,9 +288,9 @@ async function isValidModelFile(path: string): Promise<boolean> {
  */
 async function tryDeriveModelPath(fileName: string): Promise<string | null> {
   const candidatePaths = [
-    `/models/006/${fileName}`,
-    `/models/${fileName.replace(/\.model3\.json$/i, '')}/${fileName}`,
-    `/models/${fileName}`,
+    `models/006/${fileName}`,
+    `models/${fileName.replace(/\.model3\.json$/i, '')}/${fileName}`,
+    `models/${fileName}`,
   ]
 
   for (const path of candidatePaths) {
@@ -291,9 +309,9 @@ async function tryDeriveModelPathFromMoc3(fileName: string): Promise<string | nu
   const model3FileName = `${baseName}.model3.json`
 
   const candidatePaths = [
-    `/models/006/${model3FileName}`,
-    `/models/${baseName}/${model3FileName}`,
-    `/models/${model3FileName}`,
+    `models/006/${model3FileName}`,
+    `models/${baseName}/${model3FileName}`,
+    `models/${model3FileName}`,
   ]
 
   for (const path of candidatePaths) {

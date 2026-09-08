@@ -1002,9 +1002,9 @@ export default function WelcomePage() {
               transition={{ duration: 0.3 }}
               className="flex flex-col items-center text-center"
             >
-              {/* Logo */}
+              {/* Logo（相对路径：打包后经 file:// 加载 dist/ 下资源） */}
               <img
-                src="/images/platform/logo.svg"
+                src="./images/platform/logo.svg"
                 alt="logo"
                 className="w-24 h-24 mb-6"
               />
