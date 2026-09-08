@@ -63,3 +63,5 @@ jobs:
         shell: bash
         working-directory: server
         run: node scripts/boot-smoke.mjs
+
+# 自持检出（无外网依赖）

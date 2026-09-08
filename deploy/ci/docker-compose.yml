@@ -44,7 +44,7 @@ services:
     command: ["daemon", "--config", "/config.yaml"]
     environment:
       # 首次启动用环境变量自动注册；.runner 凭据持久化在 runner/data/，之后 token 可轮换
-      - GITEA_INSTANCE_URL=http://qiyu-gitea:3000
+      - GITEA_INSTANCE_URL=http://host.docker.internal:3080
       - GITEA_RUNNER_NAME=qiyu-linux-runner
       - GITEA_RUNNER_REGISTRATION_TOKEN=${RUNNER_REGISTRATION_TOKEN:?请在启动前 export RUNNER_REGISTRATION_TOKEN}
     volumes:
