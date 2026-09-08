@@ -12,8 +12,16 @@ on:
 
 jobs:
   linux:
-    name: linux 容器 · lint + 类型检查
+    name: linux 容器 · lint + 类型检查 + 迁移验证
     runs-on: docker-linux
+    services:
+      postgres:
+        image: docker.m.daocloud.io/library/postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci_pg_pass
+          POSTGRES_DB: qiyu_test
+        ports:
+          - "5432:5432"
     steps:
       - name: 检出代码（自持：从本地 Gitea 克隆，不依赖外网 action 市场）
         shell: bash
@@ -32,6 +40,9 @@ jobs:
       - name: TypeScript 类型检查
         shell: bash
         run: cd server && npx tsc --noEmit
+      - name: 数据库迁移验证（真实 PostgreSQL 16）
+        shell: bash
+        run: cd server && DATABASE_URL="postgresql://postgres:ci_pg_pass@postgres:5432/qiyu_test" node db/migrate.mjs
 
   windows:
     name: windows 原生 · 类型检查 + 启动冒烟
