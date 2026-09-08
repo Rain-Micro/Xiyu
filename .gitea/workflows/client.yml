@@ -25,38 +25,60 @@ jobs:
     name: linux 容器 · lint + 类型 + 前端构建
     runs-on: docker-linux
     steps:
-      - name: 检出代码
-        uses: https://gitea.com/actions/checkout@v4
+      - name: 检出代码（自持：从本地 Gitea 克隆，不依赖外网 action 市场）
+        shell: bash
+        run: |
+          git init -q .
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 "http://qiyu:${GITHUB_TOKEN}@${GITHUB_SERVER_URL#http://}/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git checkout -q -f FETCH_HEAD
       - name: 安装依赖（npm ci，平台独立安装）
+        shell: bash
         run: npm ci --no-audit --no-fund
       - name: ESLint
+        shell: bash
         run: npx eslint . --ext ts,tsx --max-warnings 0
       - name: 跨平台纪律（禁止硬编码盘符路径）
+        shell: bash
         run: |
           if grep -rEn '"[A-Za-z]:\\' src electron --include='*.ts' --include='*.tsx'; then
             echo '::error::发现硬编码盘符路径，请改用 path.join 或相对路径'
             exit 1
           fi
       - name: TypeScript 类型检查
+        shell: bash
         run: npx tsc --noEmit
       - name: Vite 生产构建
+        shell: bash
         run: npx vite build
 
   windows:
     name: windows 原生 · 类型 + 前端构建 + Electron 打包链路
     runs-on: windows-native
     steps:
-      - name: 检出代码
-        uses: https://gitea.com/actions/checkout@v4
+      - name: 检出代码（自持：从本地 Gitea 克隆）
+        shell: bash
+        run: |
+          git init -q .
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 "http://qiyu:${GITHUB_TOKEN}@${GITHUB_SERVER_URL#http://}/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git checkout -q -f FETCH_HEAD
       - name: Node 版本（要求主版本 24）
+        shell: bash
         run: node -v
       - name: 安装依赖（npm ci，平台独立安装）
+        shell: bash
         run: npm ci --no-audit --no-fund
       - name: TypeScript 类型检查
+        shell: bash
         run: npx tsc --noEmit
       - name: Vite 生产构建
+        shell: bash
         run: npx vite build
       - name: Electron 打包（--dir 验证打包链路，NSIS 完整安装包走 tag 流水线）
+        shell: bash
         run: npx electron-builder --dir
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/

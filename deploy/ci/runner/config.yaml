@@ -9,8 +9,8 @@ runner:
   fetch_timeout: 5s
   fetch_interval: 2s
   labels:
-    - "docker-linux:docker://docker.1ms.run/node:24-bookworm"
-    - "ubuntu-latest:docker://docker.1ms.run/node:24-bookworm"
+    - "docker-linux:docker://docker.m.daocloud.io/library/node:24-bookworm"
+    - "ubuntu-latest:docker://docker.m.daocloud.io/library/node:24-bookworm"
 
 host:
   workdir_parent: workspace

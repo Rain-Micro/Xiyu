@@ -14,34 +14,52 @@ jobs:
   linux:
     name: linux 容器 · lint + 类型检查
     runs-on: docker-linux
-    defaults:
-      run:
-        working-directory: server
-        shell: bash
     steps:
-      - name: 检出代码
-        uses: https://gitea.com/actions/checkout@v4
+      - name: 检出代码（自持：从本地 Gitea 克隆，不依赖外网 action 市场）
+        shell: bash
+        run: |
+          git init -q .
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 "http://qiyu:${GITHUB_TOKEN}@${GITHUB_SERVER_URL#http://}/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git checkout -q -f FETCH_HEAD
       - name: 安装依赖（npm ci，平台独立安装）
+        shell: bash
+        working-directory: server
         run: npm ci --no-audit --no-fund
       - name: ESLint
+        shell: bash
+        working-directory: server
         run: npx eslint src --max-warnings 0
       - name: TypeScript 类型检查
+        shell: bash
+        working-directory: server
         run: npx tsc --noEmit
 
   windows:
     name: windows 原生 · 类型检查 + 启动冒烟
     runs-on: windows-native
-    defaults:
-      run:
-        working-directory: server
     steps:
-      - name: 检出代码
-        uses: https://gitea.com/actions/checkout@v4
+      - name: 检出代码（自持：从本地 Gitea 克隆）
+        shell: bash
+        run: |
+          git init -q .
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 "http://qiyu:${GITHUB_TOKEN}@${GITHUB_SERVER_URL#http://}/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git checkout -q -f FETCH_HEAD
       - name: Node 版本（要求主版本 24）
+        shell: bash
         run: node -v
       - name: 安装依赖（npm ci，平台独立安装）
+        shell: bash
+        working-directory: server
         run: npm ci --no-audit --no-fund
       - name: 编译（tsc）
+        shell: bash
+        working-directory: server
         run: npx tsc
       - name: 启动冒烟（/api/health 探活）
+        shell: bash
+        working-directory: server
         run: node scripts/boot-smoke.mjs
