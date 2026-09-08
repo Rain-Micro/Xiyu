@@ -1,15 +1,16 @@
 import crypto from 'crypto'
 import WebSocket from 'ws'
 import ffmpeg from 'fluent-ffmpeg'
-import ffmpegStatic from 'ffmpeg-static'
+// 二进制随 npm 平台包分发（npmmirror 可缓存），不依赖 GitHub 下载
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 import { Readable } from 'stream'
 
-// 设置 ffmpeg 路径（使用 ffmpeg-static 提供的二进制文件）
-if (ffmpegStatic) {
-  ffmpeg.setFfmpegPath(ffmpegStatic as string)
-  console.log('[iflytek] ffmpeg 路径已设置:', ffmpegStatic)
+// 设置 ffmpeg 路径（使用 @ffmpeg-installer 提供的二进制文件）
+if (ffmpegInstaller?.path) {
+  ffmpeg.setFfmpegPath(ffmpegInstaller.path)
+  console.log('[iflytek] ffmpeg 路径已设置:', ffmpegInstaller.path)
 } else {
-  console.warn('[iflytek] ffmpeg-static 未找到，语音转文字可能无法工作')
+  console.warn('[iflytek] ffmpeg 未找到，语音转文字可能无法工作')
 }
 
 const APPID = process.env.IFLYTEK_APPID || ''
