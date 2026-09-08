@@ -1,10 +1,19 @@
-import { app, BrowserWindow, ipcMain, screen, crashReporter } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, crashReporter, session } from 'electron'
 import path from 'path'
 import fs from 'fs'
 
 crashReporter.start({ submitURL: '', uploadToServer: false })
 // 不再禁用硬件加速：Live2D/WebGL 需 GPU 渲染，软件模拟会导致动画严重卡顿；
 // GPU 进程异常有下方 gpu-process-crashed 日志兜底
+
+// 麦克风权限：语音转文字依赖 getUserMedia，显式放行媒体权限（其余拒绝并记日志）
+app.whenReady().then(() => {
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    const allowed = permission === 'media'
+    if (!allowed) log(`权限请求被拒绝: ${permission}`)
+    callback(allowed)
+  })
+})
 
 const logFile = path.join(app.getPath('userData'), 'app-debug.log')
 function log(msg: string) {

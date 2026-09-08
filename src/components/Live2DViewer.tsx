@@ -642,7 +642,11 @@ const Live2DViewer = forwardRef<Live2DViewerHandle, {
         autoDensity: true,
         resolution: window.devicePixelRatio || 1,
         antialias: true,
+        // 双显卡机型优先独显；Live2D 变形本身 CPU 主导，渲染输出仍受益
+        powerPreference: 'high-performance',
       })
+      // 帧率限制：60fps 对聊天挂件场景无收益，30fps 显著降低 CPU 占用
+      app.ticker.maxFPS = 30
 
       console.log('[Live2D] 容器尺寸:', width, height)
       appRef.current = app
@@ -760,6 +764,7 @@ const Live2DViewer = forwardRef<Live2DViewerHandle, {
 
         const MAX_ANGLE = 15
         const angleClampTicker = (delta: number) => {
+          if (document.hidden) return // 页面不可见时暂停计算
           void delta
           const m = modelRef.current as {
             internalModel?: {
@@ -901,6 +906,7 @@ const Live2DViewer = forwardRef<Live2DViewerHandle, {
         }
 
         const smoothTrackTicker = (delta: number) => {
+          if (document.hidden) return // 页面不可见时暂停计算
           void delta
           const m = modelRef.current as {
             internalModel?: {
@@ -1164,6 +1170,11 @@ const Live2DViewer = forwardRef<Live2DViewerHandle, {
 
         const breathAnimate = () => {
           if (destroyed) return
+          if (document.hidden) {
+            // 页面不可见时跳过呼吸动画计算，保留 rAF 调度以便恢复
+            breathAnimationRef.current = requestAnimationFrame(breathAnimate)
+            return
+          }
           const m = modelRef.current as {
             internalModel?: {
               coreModel?: { setParameterValueById?: (id: string, value: number) => void }

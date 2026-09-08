@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { RefreshCw, BookOpen, User, Settings } from 'lucide-react'
+import { RefreshCw, BookOpen, User, Settings, Home } from 'lucide-react'
 import { useAuthStore, useSettingsStore, useUIStore, useCharacterStore } from '@/stores'
 import { db } from '@/services/db'
 import { api, getToken } from '@/services/apiClient'
@@ -28,6 +28,7 @@ import NotificationToast from '@/components/NotificationToast'
 import HealthReminder from '@/components/HealthReminder'
 import FirstTimeGuide from '@/components/FirstTimeGuide'
 import FavoritesPage from '@/pages/FavoritesPage'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 
 function App() {
@@ -150,6 +151,20 @@ function App() {
       .catch(() => { /* 静默失败 */ })
   }, [])
 
+  // 会话过期治理：apiClient 遇 401 清 token 后广播事件 → 同步登出本地状态
+  useEffect(() => {
+    const onExpired = () => useAuthStore.getState().logout()
+    window.addEventListener('qiyu:session-expired', onExpired)
+    return () => window.removeEventListener('qiyu:session-expired', onExpired)
+  }, [])
+
+  // 残留登录态直达：登录后直接关窗重开（未点退出）时，路由停在 '/' 则自动回主页
+  useEffect(() => {
+    if (isLoggedIn && user && location.pathname === '/') {
+      navigate('/main', { replace: true })
+    }
+  }, [isLoggedIn, user, location.pathname, navigate])
+
   // 主题切换
   useEffect(() => {
     const settings = useSettingsStore.getState().settings
@@ -199,6 +214,15 @@ function App() {
         >
           <RefreshCw className="w-5 h-5 text-gray-600 dark:text-gray-400" />
         </button>
+        {isLoggedIn && location.pathname !== '/main' && (
+          <button
+            onClick={() => navigate('/main')}
+            className="p-2 rounded-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all hover:scale-105"
+            title="回到主页"
+          >
+            <Home className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+          </button>
+        )}
         {isLoggedIn && (
           <>
             <button
@@ -230,6 +254,8 @@ function App() {
       </div>
 
       <div className="flex-1 overflow-hidden relative">
+        {/* 路由级错误边界：页面渲染崩溃时给出可操作兜底（回主页/刷新），key 随路由复位 */}
+        <ErrorBoundary key={location.pathname}>
         <AnimatePresence mode="wait" key={refreshKey}>
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<WelcomePage />} />
@@ -248,6 +274,7 @@ function App() {
           <Route path="/user-module/preferences" element={<UserPreferencesPage />} />
         </Routes>
       </AnimatePresence>
+      </ErrorBoundary>
 
       {/* 全局弹窗 */}
       <AnimatePresence>

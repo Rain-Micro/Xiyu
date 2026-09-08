@@ -19,6 +19,7 @@ import {
 import { formatDate, sanitizeDate } from '@/utils/dateFormat'
 import { parseCharacterWithAI } from '@/services/characterImportAPI'
 import { API_BASE, authHeaders } from '@/services/apiClient'
+import { TTS_ENABLED } from '@/config/features'
 
 /* ──────────────────── TagInput 内联组件 ──────────────────── */
 
@@ -1575,13 +1576,15 @@ export default function CreateCharacterPage() {
 
                 <hr className="my-6 border-gray-200 dark:border-gray-700" />
 
-                {/* 区块五：自定义角色声音 */}
-                <div className="mb-2">
-                  <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-4">
-                    自定义角色声音
-                  </h2>
-                  <VoiceSettings />
-                </div>
+                {/* 区块五：自定义角色声音（TTS 入口开关，见 config/features；代码保留） */}
+                {TTS_ENABLED && (
+                  <div className="mb-2">
+                    <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-4">
+                      自定义角色声音
+                    </h2>
+                    <VoiceSettings />
+                  </div>
+                )}
 
                 {/* 底部留白，避免被 footer 遮挡 */}
                 <div className="h-4" />

@@ -139,8 +139,12 @@ export default function AIAssistant() {
   const { settings } = useSettingsStore()
   const { characters, setCurrentCharacter } = useCharacterStore()
   const { user, isLoggedIn } = useAuthStore()
+  // 登录/找回等未登录页面强制显示"客服"身份：defaultAssistantId 是设备级持久值，
+  // 直接关窗未登出时残留的"上次助手"不应出现在登录界面
+  const assistantRoute = useLocation().pathname
+  const onAuthPage = ['/', '/forgot-password'].includes(assistantRoute)
   const selectedAssistant = settings?.defaultAssistantId
-  const assistantId = isLoggedIn && selectedAssistant ? selectedAssistant : undefined
+  const assistantId = isLoggedIn && !onAuthPage && selectedAssistant ? selectedAssistant : undefined
   const assistantSeed = assistantId ? getAssistantSeed(assistantId) : undefined
   const assistantName = assistantSeed?.name || '客服'
 

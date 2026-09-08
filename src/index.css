@@ -41,16 +41,25 @@
     z-index: 1;
   }
 
+  /* 开始选择（聚焦输入框内）即隐藏自定义占位，避免与原生"年/月/日"段文字重叠 */
+  .date-input-wrapper:focus-within .date-input-placeholder {
+    display: none;
+  }
+
   .dark .date-input-placeholder {
     color: #6b7280;
   }
 
-  input[type="date"][value=""]::-webkit-datetime-edit {
+  /* 隐藏空值时原生日期段的"年/月/日"文字。
+     不用 [value=""] 属性选择器：React 受控组件设置的是 value property，
+     attribute 未必存在导致规则失效（占位重叠的根因之一） */
+  input[type="date"]:not(:focus):invalid::-webkit-datetime-edit {
     color: transparent;
   }
 
-  input[type="date"][value=""]::-webkit-datetime-edit-fields-wrapper {
-    color: transparent;
+  input[type="date"]:focus::-webkit-datetime-edit,
+  input[type="date"]:valid::-webkit-datetime-edit {
+    color: inherit;
   }
 
   .btn-primary {

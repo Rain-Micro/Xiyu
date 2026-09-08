@@ -477,8 +477,11 @@ const ThreeDViewer = forwardRef<ThreeDViewerHandle, ThreeDViewerProps>(
       const data = sceneRef.current
       if (!data) return // 组件已卸载，停止循环
 
-      data.controls.update()
-      data.renderer.render(data.scene, data.camera)
+      // 页面不可见时跳过渲染（保留调度），避免后台空转占 CPU/GPU
+      if (!document.hidden) {
+        data.controls.update()
+        data.renderer.render(data.scene, data.camera)
+      }
       animationId = requestAnimationFrame(animate)
       data.animationId = animationId
     }

@@ -50,6 +50,7 @@ import { getImageFromPasteEvent } from '@/utils/imageUtils'
 import { SpeechRecognitionManager } from '@/utils/speechRecognition'
 import { recognizeSpeech } from '@/services/speechAPI'
 import { API_BASE, authHeaders } from '@/services/apiClient'
+import { TTS_ENABLED } from '@/config/features'
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────
 
@@ -1229,8 +1230,8 @@ function MessageBubble({
     <p className="whitespace-pre-wrap text-sm leading-relaxed">
       {renderContentWithLinks(message.content, isUser)}
     </p>
-    {/* ─── AI 消息的语音播放条 ─── */}
-    {!isUser && !message.isWithdrawn && message.content && (
+    {/* ─── AI 消息的语音播放条（TTS 入口开关，见 config/features） ─── */}
+    {TTS_ENABLED && !isUser && !message.isWithdrawn && message.content && (
       <VoiceBar text={message.content} />
     )}
   </>
@@ -1504,6 +1505,7 @@ function InputArea({
   onAbort: () => void
 }) {
   const { settings, updateSettings } = useSettingsStore()
+  const { addNotification } = useUIStore()
   const [text, setText] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
   const [showToolbox, setShowToolbox] = useState(false)
@@ -1862,6 +1864,15 @@ function InputArea({
       }, 100)
     } catch (err) {
       console.error('[Speech] 识别失败:', err)
+      addNotification({
+        id: `asr-error-${Date.now()}`,
+        type: 'error',
+        title: '语音识别失败',
+        message: '语音已录下但识别未成功，可重试或直接输入文字。',
+        timestamp: Date.now(),
+        read: false,
+        duration: 5000,
+      })
     } finally {
       cleanupRecording()
       setIsRecording(false)
@@ -1925,11 +1936,19 @@ function InputArea({
       }, MAX_RECORDING_SECONDS * 1000)
     } catch (err) {
       console.error('录音启动失败:', err)
-      alert('无法访问麦克风，请检查浏览器权限设置。')
+      addNotification({
+        id: `mic-error-${Date.now()}`,
+        type: 'error',
+        title: '无法使用麦克风',
+        message: '请检查系统麦克风设备与权限（Windows 设置 → 隐私 → 麦克风），或重启应用后重试。',
+        timestamp: Date.now(),
+        read: false,
+        duration: 6000,
+      })
       cleanupRecording()
       setIsRecording(false)
     }
-  }, [cleanupRecording, text])
+  }, [cleanupRecording, text, addNotification])
 
   /** 停止录音 */
   const stopRecording = useCallback(() => {
@@ -2902,9 +2921,10 @@ export default function ChatPage() {
   }, [currentCharacter?.id, currentCharacter?.modelDisplay])
 
   // 助手优先显示用户备注，无备注则显示助手名；角色优先显示备注（background），无则显示角色名
+  // profile 全程可选链：非法/残缺角色数据不致渲染崩溃（配合路由级 ErrorBoundary 双保险）
   const displayName = currentCharacter?.isAssistant
-    ? (currentCharacter.assistantEditable?.userNote || currentCharacter.profile.name || '未知角色')
-    : (currentCharacter?.profile.background || currentCharacter?.profile.name || '未知角色')
+    ? (currentCharacter.assistantEditable?.userNote || currentCharacter.profile?.name || '未知角色')
+    : (currentCharacter?.profile?.background || currentCharacter?.profile?.name || '未知角色')
 
   // ─── 助手设置菜单操作 ────────────────────────────────────────────────────
   const handleAssistantTogglePin = () => {
@@ -3312,7 +3332,7 @@ export default function ChatPage() {
       id: `forward-${Date.now()}`,
       type: 'success',
       title: '转发成功',
-      message: `已转发给 ${targetCharacter.profile.background || targetCharacter.profile.name}`,
+      message: `已转发给 ${targetCharacter.profile?.background || targetCharacter.profile?.name || '未知角色'}`,
       timestamp: Date.now(),
       read: false,
       duration: 2000,
@@ -3323,7 +3343,7 @@ export default function ChatPage() {
   const handleFavoriteMessage = useCallback(async (message: Message) => {
     const sourceRole = message.role === 'user'
       ? '我'
-      : (currentCharacter?.profile.background || currentCharacter?.profile.name || '未知角色')
+      : (currentCharacter?.profile?.background || currentCharacter?.profile?.name || '未知角色')
     await addFavoriteFromMessage(message, sourceRole, characterId)
     addNotification({
       id: `fav-${Date.now()}`,

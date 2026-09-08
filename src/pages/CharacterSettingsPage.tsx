@@ -167,7 +167,7 @@ export default function CharacterSettingsPage() {
     )
   }
 
-  const displayName = character.profile.background || character.profile.name || '未知角色'
+  const displayName = character.profile?.background || character.profile?.name || '未知角色'
 
   // 菜单项配置
   const menuItems = [

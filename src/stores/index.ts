@@ -28,6 +28,32 @@ export type { CharacterChatStatus } from './chatStore'
 // Re-export favorites store
 export { useFavoritesStore } from './favoritesStore'
 
+/**
+ * 角色归一化：兜底 profile/settings 为合法对象。
+ * 防御强行导入/历史脏数据（缺 profile 的残缺对象）进入渲染层导致白屏。
+ */
+function normalizeCharacter(c: Character): Character {
+  const profile = c.profile ?? ({
+    id: `profile-${c.id}`,
+    userId: c.userId,
+    name: c.name || '未知角色',
+    personality: [],
+    tone: '',
+    address: '',
+    hobbies: [],
+    background: '',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  } as Character['profile'])
+  const settings = c.settings ?? ({
+    voiceType: 'default',
+    voiceSpeed: 'normal',
+    voicePitch: 'normal',
+    decorations: [],
+  } as Character['settings'])
+  return { ...c, profile, settings }
+}
+
 // 认证状态
 interface AuthState {
   user: User | null
@@ -99,7 +125,7 @@ export const useCharacterStore = create<CharacterState>((set) => ({
       }
       return true
     })
-    set({ characters: deduped })
+    set({ characters: deduped.map(normalizeCharacter) })
   },
   setCurrentCharacter: (character) => set({ currentCharacter: character }),
   addCharacter: (character) => {
@@ -223,11 +249,11 @@ export const useCharacterStore = create<CharacterState>((set) => ({
         }
         return true
       })
-      set({ characters: deduped })
+      set({ characters: deduped.map(normalizeCharacter) })
     } catch (err) {
       console.error('[CharacterStore] 云端加载失败，回退到本地:', err)
       const characters = await db.characters.where('userId').equals(userId).toArray()
-      set({ characters })
+      set({ characters: characters.map(normalizeCharacter) })
     }
   }
 }))
