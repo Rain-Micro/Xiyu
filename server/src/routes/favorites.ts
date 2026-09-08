@@ -1,126 +1,100 @@
 import { Router, Request, Response } from 'express'
-import { supabase } from '../supabase'
+import { query } from '../db'
 
 const router = Router()
 
-// 获取用户收藏列表
+/** GET /api/favorites — 当前用户收藏列表（置顶优先，其余按时间倒序） */
 router.get('/', async (req: Request, res: Response) => {
-  const userId = req.query.userId as string
-
-  if (!userId) {
-    return res.status(400).json({ error: '缺少 userId' })
-  }
-
+  const auth = req.auth!
   try {
-    const { data, error } = await supabase
-      .from('favorites')
-      .select('data')
-      .eq('user_id', userId)
-      .order('is_pinned', { ascending: false })
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('[Favorites] 获取列表失败:', error)
-      return res.status(500).json({ error: error.message })
-    }
-
-    const favorites = (data || []).map((row) => row.data)
-    res.json({ favorites })
+    const { rows } = await query<{ data: unknown }>(
+      'SELECT data FROM favorites WHERE user_id=$1 ORDER BY is_pinned DESC, created_at DESC',
+      [auth.userId],
+    )
+    res.json({ favorites: rows.map((row) => row.data) })
   } catch (err) {
-    console.error('[Favorites API 错误]', err)
+    console.error('[Favorites] 获取列表失败:', err)
     res.status(500).json({ error: '获取收藏列表失败' })
   }
 })
 
-// 添加收藏
+/**
+ * POST /api/favorites — upsert 收藏。body: { favorite }（userId 取自 JWT）
+ * created_at 统一服务端时间（修复旧实现把 ISO 字符串写入时间列的冲突）。
+ */
 router.post('/', async (req: Request, res: Response) => {
-  const { favorite, userId } = req.body
+  const auth = req.auth!
+  const favorite = req.body?.favorite
 
-  if (!favorite || !userId) {
-    return res.status(400).json({ error: '缺少必要参数' })
+  if (!favorite?.id) {
+    res.status(400).json({ error: '缺少必要参数' })
+    return
   }
 
   try {
-    const { error } = await supabase.from('favorites').upsert({
-      id: favorite.id,
-      user_id: userId,
-      data: favorite,
-      created_at: new Date(favorite.createdAt || Date.now()).toISOString(),
-      is_pinned: favorite.isPinned || false,
-      // content 不传了，让数据库用默认值
-    }, { onConflict: 'id' })
-    if (error) {
-        console.error('[Favorites] 添加失败:', error)
-        return res.status(500).json({ error: error.message })
-    }
+    await query(
+      `INSERT INTO favorites (id, user_id, data, is_pinned)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE SET data=$3, is_pinned=$4`,
+      [String(favorite.id), auth.userId, JSON.stringify(favorite), Boolean(favorite.isPinned)],
+    )
     res.json({ success: true })
   } catch (err) {
-    console.error('[Favorites API 错误]', err)
+    console.error('[Favorites] 添加失败:', err)
     res.status(500).json({ error: '添加收藏失败' })
   }
 })
 
-// 更新收藏（置顶等）
+/** PATCH /api/favorites/:id — 更新收藏（置顶等；body: { updates } 或 { isPinned }，仅本人） */
 router.patch('/:id', async (req: Request, res: Response) => {
+  const auth = req.auth!
   const { id } = req.params
-  const { updates } = req.body
+  const body = req.body || {}
+  const updates = body.updates
 
-  if (!id || !updates) {
-    return res.status(400).json({ error: '缺少必要参数' })
+  if (!updates && typeof body.isPinned !== 'boolean') {
+    res.status(400).json({ error: '缺少必要参数' })
+    return
   }
 
   try {
-    const dbUpdates: Record<string, unknown> = {}
-
-    if (updates.isPinned !== undefined) {
-      dbUpdates.is_pinned = updates.isPinned
+    const existing = await query<{ data: Record<string, unknown>; is_pinned: boolean }>(
+      'SELECT data, is_pinned FROM favorites WHERE id=$1 AND user_id=$2',
+      [id, auth.userId],
+    )
+    if (existing.rows.length === 0) {
+      res.status(404).json({ error: '收藏不存在' })
+      return
     }
 
-    if (Object.keys(updates).length > 0) {
-      const { data: existing } = await supabase
-        .from('favorites')
-        .select('data')
-        .eq('id', id)
-        .single()
+    const merged = updates
+      ? { ...existing.rows[0].data, ...updates, id }
+      : existing.rows[0].data
+    const isPinned = typeof body.isPinned === 'boolean'
+      ? body.isPinned
+      : typeof merged.isPinned === 'boolean' ? merged.isPinned : existing.rows[0].is_pinned
 
-      if (existing) {
-        dbUpdates.data = { ...existing.data, ...updates }
-      }
-
-      const { error } = await supabase.from('favorites').update(dbUpdates).eq('id', id)
-
-      if (error) {
-        console.error('[Favorites] 更新失败:', error)
-        return res.status(500).json({ error: error.message })
-      }
-    }
-
+    await query(
+      'UPDATE favorites SET data=$1, is_pinned=$2 WHERE id=$3 AND user_id=$4',
+      [JSON.stringify(merged), isPinned, id, auth.userId],
+    )
     res.json({ success: true })
   } catch (err) {
-    console.error('[Favorites API 错误]', err)
+    console.error('[Favorites] 更新失败:', err)
     res.status(500).json({ error: '更新收藏失败' })
   }
 })
 
-// 删除收藏
+/** DELETE /api/favorites/:id — 删除收藏（仅本人） */
 router.delete('/:id', async (req: Request, res: Response) => {
+  const auth = req.auth!
   const { id } = req.params
 
-  if (!id) {
-    return res.status(400).json({ error: '缺少 id' })
-  }
-
   try {
-    const { error } = await supabase.from('favorites').delete().eq('id', id)
-
-    if (error) {
-      console.error('[Favorites] 删除失败:', error)
-      return res.status(500).json({ error: error.message })
-    }
-
+    await query('DELETE FROM favorites WHERE id=$1 AND user_id=$2', [id, auth.userId])
     res.json({ success: true })
   } catch (err) {
-    console.error('[Favorites API 错误]', err)
+    console.error('[Favorites] 删除失败:', err)
     res.status(500).json({ error: '删除收藏失败' })
   }
 })

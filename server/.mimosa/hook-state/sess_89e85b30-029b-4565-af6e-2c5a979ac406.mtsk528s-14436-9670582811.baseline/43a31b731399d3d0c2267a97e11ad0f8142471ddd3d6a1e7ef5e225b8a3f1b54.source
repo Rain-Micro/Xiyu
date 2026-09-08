@@ -1,6 +1,6 @@
 // server/src/routes/voice.ts
 import { Router, Request, Response } from 'express';
-import { synthesizeSpeech, listVoices, getOperitConfig } from '../services/voiceService';
+import { synthesizeSpeech, listVoices, configureOperit, getOperitConfig } from '../services/voiceService';
 
 const router = Router();
 
@@ -57,9 +57,19 @@ router.get('/status', (req: Request, res: Response) => {
     });
 });
 
-// 获取 Operit 配置（只读；运行时改写配置的 POST 端点已移除——配置一律经 env，防未授权 SSRF）
+// 获取 Operit 配置
 router.get('/operit/config', (req: Request, res: Response) => {
     res.json(getOperitConfig());
+});
+
+// 动态配置 Operit（运行时）
+router.post('/operit/config', (req: Request, res: Response) => {
+    const { apiUrl, token } = req.body;
+    if (typeof apiUrl !== 'string' || typeof token !== 'string') {
+        return res.status(400).json({ error: '参数格式错误，需要 apiUrl(string) 和 token(string)' });
+    }
+    configureOperit(apiUrl, token);
+    res.json({ success: true, config: getOperitConfig() });
 });
 
 export default router;

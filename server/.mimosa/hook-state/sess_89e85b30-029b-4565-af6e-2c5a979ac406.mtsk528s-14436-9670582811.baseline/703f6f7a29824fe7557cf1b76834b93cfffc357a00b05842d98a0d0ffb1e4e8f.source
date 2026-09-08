@@ -64,15 +64,12 @@ router.post('/send', async (req: Request, res: Response) => {
         res.status(502).json({ error: result.message || '邮件发送失败' })
         return
       }
-    } else if (process.env.SMS_MODE === 'real') {
+    } else {
       const result = await sendSmsCode(String(target), code)
       if (!result.success) {
         res.status(502).json({ error: result.message || '短信发送失败' })
         return
       }
-    } else {
-      // mock 模式（默认）：不发送真实短信，验证码写入服务端日志供开发/联调使用
-      console.log(`[sms] mock 模式验证码 target=${String(target)} code=${code}`)
     }
     res.json({ success: true, expiresIn: CODE_TTL_MINUTES * 60 })
   } catch (err) {

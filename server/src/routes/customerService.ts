@@ -1,19 +1,21 @@
 import { Router, Request, Response } from 'express'
-import { supabase } from '../supabase'
 import { PLATFORM_KNOWLEDGE } from '../services/platformKnowledge'
 import { sendCustomerServiceEmail } from '../services/emailService'
+import { query } from '../db'
+import { requireAuth, requireAdmin } from '../auth'
 
 const router = Router()
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY
+// 出站 AI 端点固定为官方地址（不做成可配置项，杜绝 SSRF 面）；模型名可经 env 覆盖
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash'
+
 const CS_CHARACTER_ID = 'customer-service'
 
 const TRANSFER_MARKER = 'TRANSFER_TO_HUMAN'
 const HUMAN_KEYWORDS = ['转人工', '人工客服', '真人客服', '找人工', '人工服务']
 const CLOSE_MARKER = '__CLOSED__:'
 const ADMIN_REPLY_PREFIX = '[客服] '
-
-const ADMIN_EMAILS = ['2968679835@qq.com']
 
 function stripMarkdown(text: string): string {
   if (!text) return text
@@ -26,55 +28,42 @@ function stripMarkdown(text: string): string {
     .replace(/^\s*[-+]\s+/gm, '')
 }
 
-function isAdminEmail(email: string | undefined | null): boolean {
-  if (!email) return false
-  return ADMIN_EMAILS.includes(email.toLowerCase())
-}
-
-// 获取客服对话历史
+// 获取客服对话历史（最近 N 条，按时间正序）
 async function getCSHistory(userId: string, limit: number = 20) {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('role, content, created_at')
-    .eq('character_id', CS_CHARACTER_ID)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-    .limit(limit)
-
-  if (error) return []
-  return data || []
+  const { rows } = await query<{ role: string; content: string; created_at: Date }>(
+    `SELECT role, content, created_at FROM (
+       SELECT role, content, created_at FROM messages
+       WHERE character_id=$1 AND user_id=$2
+       ORDER BY created_at DESC LIMIT $3
+     ) recent ORDER BY created_at ASC`,
+    [CS_CHARACTER_ID, userId, limit],
+  )
+  return rows
 }
 
 // 检查用户是否已有人工客服介入（有 [客服] 前缀的消息）
 async function hasHumanIntervention(userId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('content')
-    .eq('character_id', CS_CHARACTER_ID)
-    .eq('user_id', userId)
-    .eq('role', 'assistant')
-
-  if (error) return false
-  return (data || []).some((msg) => {
-    const content = (msg.content as string) || ''
+  const { rows } = await query<{ content: string }>(
+    `SELECT content FROM messages
+     WHERE character_id=$1 AND user_id=$2 AND role='assistant'`,
+    [CS_CHARACTER_ID, userId],
+  )
+  return rows.some((msg) => {
+    const content = msg.content || ''
     return content.startsWith(ADMIN_REPLY_PREFIX) || content.startsWith(CLOSE_MARKER)
   })
 }
 
 // 检查会话是否已关闭
 async function isSessionClosed(userId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('content')
-    .eq('character_id', CS_CHARACTER_ID)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (error || !data) return false
-  const content = (data.content as string) || ''
-  return content.startsWith(CLOSE_MARKER)
+  const { rows } = await query<{ content: string }>(
+    `SELECT content FROM messages
+     WHERE character_id=$1 AND user_id=$2
+     ORDER BY created_at DESC LIMIT 1`,
+    [CS_CHARACTER_ID, userId],
+  )
+  if (rows.length === 0) return false
+  return (rows[0].content || '').startsWith(CLOSE_MARKER)
 }
 
 // 调用 DeepSeek AI 客服
@@ -97,7 +86,7 @@ async function callAICustomerService(userMessage: string, history: { role: strin
       'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'deepseek-v4-flash',
+      model: DEEPSEEK_MODEL,
       messages,
       temperature: 0.5,
       max_tokens: 1024,
@@ -115,76 +104,73 @@ async function callAICustomerService(userMessage: string, history: { role: strin
   return stripMarkdown(data.choices?.[0]?.message?.content || '')
 }
 
-// 用户发送客服消息
-router.post('/chat', async (req: Request, res: Response) => {
-  const { userId, userNickname, message, ocrText } = req.body
+// 用户发送客服消息（userId 取自 JWT）
+router.post('/chat', requireAuth, async (req: Request, res: Response) => {
+  const auth = req.auth!
+  const userId = auth.userId
+  const { userNickname, message, ocrText } = req.body
 
-  if (!userId || !message) {
-    return res.status(400).json({ error: '缺少必要参数' })
+  if (!message) {
+    res.status(400).json({ error: '缺少必要参数' })
+    return
   }
 
   // 构建 AI 可见的消息内容（包含 OCR 识别文本）
   const aiMessage = ocrText && ocrText.trim()
-    ? `[用户发送了一张图片，通过OCR识别到以下文字内容：\n${ocrText.slice(0, 2000)}\n\n用户消息：${message}]`
+    ? `[用户发送了一张图片，通过OCR识别到以下文字内容：\n${String(ocrText).slice(0, 2000)}\n\n用户消息：${message}]`
     : message
 
   try {
     // 0. 检查会话是否已关闭
     const closed = await isSessionClosed(userId)
     if (closed) {
-      return res.json({
+      res.json({
         reply: '会话已关闭，如有新问题请重新发起',
         transferred: false,
         sessionClosed: true,
       })
+      return
     }
 
     // 1. 存储用户消息
-    await supabase.from('messages').insert({
-      user_id: userId,
-      character_id: CS_CHARACTER_ID,
-      role: 'user',
-      content: message,
-    })
+    await query(
+      'INSERT INTO messages (user_id, character_id, role, content) VALUES ($1, $2, $3, $4)',
+      [userId, CS_CHARACTER_ID, 'user', String(message)],
+    )
 
     // 2. 检查是否已有人工客服介入
     const humanIntervened = await hasHumanIntervention(userId)
     if (humanIntervened) {
-      // 已有人工介入，直接通知人工
       console.log(`[CS] 已有人工介入，发送邮件通知: userId=${userId}, userNickname=${userNickname}`)
       const emailSent = await sendCustomerServiceEmail({
         userNickname: userNickname || '未知用户',
-        userMessage: message,
+        userMessage: String(message),
         sentAt: new Date().toLocaleString('zh-CN'),
       })
       console.log(`[CS] 邮件发送结果: ${emailSent ? '成功' : '失败'}`)
-      return res.json({
+      res.json({
         reply: '您的问题已转达给人工客服，请稍候。',
         transferred: true,
       })
+      return
     }
 
     // 3. 检查用户是否明确要求转人工
-    const wantsHuman = HUMAN_KEYWORDS.some((kw) => message.includes(kw))
+    const wantsHuman = HUMAN_KEYWORDS.some((kw) => String(message).includes(kw))
     if (wantsHuman) {
       console.log(`[CS] 用户要求转人工，发送邮件通知: userId=${userId}, userNickname=${userNickname}`)
-      const emailSent = await sendCustomerServiceEmail({
+      await sendCustomerServiceEmail({
         userNickname: userNickname || '未知用户',
-        userMessage: message,
+        userMessage: String(message),
         sentAt: new Date().toLocaleString('zh-CN'),
       })
-      console.log(`[CS] 邮件发送结果: ${emailSent ? '成功' : '失败'}`)
-      // 存储转人工消息
-      await supabase.from('messages').insert({
-        user_id: userId,
-        character_id: CS_CHARACTER_ID,
-        role: 'assistant',
-        content: '您的问题我将为您转接人工客服，请稍候...',
-      })
-      return res.json({
-        reply: '您的问题我将为您转接人工客服，请稍候...',
-        transferred: true,
-      })
+      const transferNotice = '您的问题我将为您转接人工客服，请稍候...'
+      await query(
+        'INSERT INTO messages (user_id, character_id, role, content) VALUES ($1, $2, $3, $4)',
+        [userId, CS_CHARACTER_ID, 'assistant', transferNotice],
+      )
+      res.json({ reply: transferNotice, transferred: true })
+      return
     }
 
     // 4. AI 客服尝试解答
@@ -199,49 +185,40 @@ router.post('/chat', async (req: Request, res: Response) => {
       console.error('[CS] AI 调用失败，转人工:', err)
       await sendCustomerServiceEmail({
         userNickname: userNickname || '未知用户',
-        userMessage: message,
+        userMessage: String(message),
         sentAt: new Date().toLocaleString('zh-CN'),
       })
-      await supabase.from('messages').insert({
-        user_id: userId,
-        character_id: CS_CHARACTER_ID,
-        role: 'assistant',
-        content: '抱歉，我暂时无法解答您的问题，已为您转接人工客服，请稍候...',
-      })
-      return res.json({
-        reply: '抱歉，我暂时无法解答您的问题，已为您转接人工客服，请稍候...',
-        transferred: true,
-      })
+      const fallbackMsg = '抱歉，我暂时无法解答您的问题，已为您转接人工客服，请稍候...'
+      await query(
+        'INSERT INTO messages (user_id, character_id, role, content) VALUES ($1, $2, $3, $4)',
+        [userId, CS_CHARACTER_ID, 'assistant', fallbackMsg],
+      )
+      res.json({ reply: fallbackMsg, transferred: true })
+      return
     }
 
     // 5. 检查 AI 是否无法解答
     if (aiReply.includes(TRANSFER_MARKER) || !aiReply.trim()) {
       await sendCustomerServiceEmail({
         userNickname: userNickname || '未知用户',
-        userMessage: message,
+        userMessage: String(message),
         sentAt: new Date().toLocaleString('zh-CN'),
         aiReply: aiReply.replace(TRANSFER_MARKER, '').trim() || undefined,
       })
       const transferMsg = '您的问题我将为您转接人工客服，请稍候...'
-      await supabase.from('messages').insert({
-        user_id: userId,
-        character_id: CS_CHARACTER_ID,
-        role: 'assistant',
-        content: transferMsg,
-      })
-      return res.json({
-        reply: transferMsg,
-        transferred: true,
-      })
+      await query(
+        'INSERT INTO messages (user_id, character_id, role, content) VALUES ($1, $2, $3, $4)',
+        [userId, CS_CHARACTER_ID, 'assistant', transferMsg],
+      )
+      res.json({ reply: transferMsg, transferred: true })
+      return
     }
 
     // 6. AI 成功解答
-    await supabase.from('messages').insert({
-      user_id: userId,
-      character_id: CS_CHARACTER_ID,
-      role: 'assistant',
-      content: aiReply,
-    })
+    await query(
+      'INSERT INTO messages (user_id, character_id, role, content) VALUES ($1, $2, $3, $4)',
+      [userId, CS_CHARACTER_ID, 'assistant', aiReply],
+    )
 
     res.json({ reply: aiReply, transferred: false })
   } catch (error) {
@@ -250,123 +227,94 @@ router.post('/chat', async (req: Request, res: Response) => {
   }
 })
 
-// 获取客服对话记录（用户侧）
-router.get('/messages/:userId', async (req: Request, res: Response) => {
-  const { userId } = req.params
+// 获取客服对话记录（用户侧，仅本人；路径参数仅作兼容，实际以 JWT 为准）
+router.get('/messages/:userId', requireAuth, async (req: Request, res: Response) => {
+  const auth = req.auth!
+  const targetUserId = req.params.userId
 
-  if (!userId) {
-    return res.status(400).json({ error: '缺少 userId' })
+  if (targetUserId && targetUserId !== auth.userId) {
+    res.status(403).json({ error: '只能查看自己的会话' })
+    return
   }
 
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('character_id', CS_CHARACTER_ID)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-
-  if (error) {
-    console.error('[CS] 获取消息失败:', error)
-    return res.status(500).json({ error: error.message })
-  }
+  const { rows } = await query<{ id: string; role: string; content: string; created_at: Date }>(
+    `SELECT id, role, content, created_at FROM messages
+     WHERE character_id=$1 AND user_id=$2 ORDER BY created_at ASC`,
+    [CS_CHARACTER_ID, auth.userId],
+  )
 
   // 过滤标记消息，剥离 [客服] 前缀，添加 sender 字段
-  const messages = (data || [])
-    .filter((msg) => {
-      const content = (msg.content as string) || ''
-      return !content.startsWith(CLOSE_MARKER)
-    })
+  const messages = rows
+    .filter((msg) => !(msg.content || '').startsWith(CLOSE_MARKER))
     .map((msg) => {
-      const content = (msg.content as string) || ''
+      const content = msg.content || ''
       if (content.startsWith(ADMIN_REPLY_PREFIX)) {
         return { ...msg, content: content.substring(ADMIN_REPLY_PREFIX.length), sender: 'admin' }
       }
       return { ...msg, sender: msg.role === 'user' ? 'user' : 'ai' }
     })
 
-  // 检查会话是否已关闭
-  const closed = (data || []).some((msg) => {
-    const content = (msg.content as string) || ''
-    return content.startsWith(CLOSE_MARKER)
-  })
+  const closed = rows.some((msg) => (msg.content || '').startsWith(CLOSE_MARKER))
 
   res.json({ messages, sessionClosed: closed })
 })
 
-// 人工客服回复（标记为人工介入，即管理员回复）
-router.post('/reply', async (req: Request, res: Response) => {
-  const { userId, content, adminEmail } = req.body
+// 人工客服回复（管理员；body.userId 为目标用户）
+router.post('/reply', requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  const { userId, content } = req.body
 
   if (!userId || !content) {
-    return res.status(400).json({ error: '缺少必要参数' })
+    res.status(400).json({ error: '缺少必要参数' })
+    return
   }
 
-  if (!isAdminEmail(adminEmail)) {
-    return res.status(403).json({ error: '无权限' })
+  const cleanContent = stripMarkdown(String(content))
+
+  try {
+    const { rows } = await query(
+      `INSERT INTO messages (user_id, character_id, role, content)
+       VALUES ($1, $2, 'assistant', $3)
+       RETURNING id, user_id, character_id, role, content, created_at`,
+      [String(userId), CS_CHARACTER_ID, `${ADMIN_REPLY_PREFIX}${cleanContent}`],
+    )
+    res.json({ success: true, message: rows[0] })
+  } catch (err) {
+    console.error('[CS] 人工回复存储失败:', err)
+    res.status(500).json({ error: '回复存储失败' })
   }
-
-  const cleanContent = stripMarkdown(content)
-
-  const { data, error } = await supabase.from('messages').insert({
-    user_id: userId,
-    character_id: CS_CHARACTER_ID,
-    role: 'assistant',
-    content: `${ADMIN_REPLY_PREFIX}${cleanContent}`,
-  }).select().single()
-
-  if (error) {
-    console.error('[CS] 人工回复存储失败:', error)
-    return res.status(500).json({ error: error.message })
-  }
-
-  res.json({ success: true, message: data })
 })
 
-// ─── 管理员接口 ───────────────────────────────────────────────
-
-// 管理员鉴权中间件
-function adminAuth(req: Request, res: Response, next: () => void) {
-  const adminEmail = req.headers['x-admin-email'] as string || req.body?.adminEmail
-  if (!isAdminEmail(adminEmail)) {
-    return res.status(403).json({ error: '无权限访问' })
-  }
-  next()
-}
+// ─── 管理员接口（requireAdmin：JWT role 驱动，彻底替代可伪造的 x-admin-email） ───
 
 // 获取所有客服会话列表
-router.get('/sessions', adminAuth, async (req: Request, res: Response) => {
+router.get('/sessions', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { data, error } = await supabase
-      .from('messages')
-      .select('user_id, role, content, created_at')
-      .eq('character_id', CS_CHARACTER_ID)
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('[CS Admin] 获取会话列表失败:', error)
-      return res.status(500).json({ error: error.message })
-    }
+    const { rows } = await query<{ user_id: string; role: string; content: string; created_at: Date }>(
+      `SELECT user_id, role, content, created_at FROM messages
+       WHERE character_id=$1 ORDER BY created_at DESC`,
+      [CS_CHARACTER_ID],
+    )
 
     // 按用户分组，提取每个用户的最新消息和统计信息
     const sessionMap = new Map<string, {
       userId: string
       lastRole: string
       lastContent: string
-      lastTime: string
+      lastTime: Date
       messageCount: number
       isClosed: boolean
     }>()
 
-    for (const msg of data || []) {
-      const uid = msg.user_id as string
+    for (const msg of rows) {
+      const uid = msg.user_id
       if (!sessionMap.has(uid)) {
         // 第一条就是最新消息（已按 created_at 降序排列）
-        const content = (msg.content as string) || ''
+        const content = msg.content || ''
         sessionMap.set(uid, {
           userId: uid,
-          lastRole: msg.role as string,
+          lastRole: msg.role,
           lastContent: content,
-          lastTime: msg.created_at as string,
+          lastTime: msg.created_at,
           messageCount: 1,
           isClosed: content.startsWith(CLOSE_MARKER),
         })
@@ -380,16 +328,15 @@ router.get('/sessions', adminAuth, async (req: Request, res: Response) => {
     const userInfoMap = new Map<string, { nickname: string; email: string; phone: string }>()
 
     if (userIds.length > 0) {
-      const { data: usersData } = await supabase
-        .from('users')
-        .select('id, nickname, email, phone')
-        .in('id', userIds)
-
-      for (const u of usersData || []) {
-        userInfoMap.set(u.id as string, {
-          nickname: u.nickname as string || '',
-          email: u.email as string || '',
-          phone: u.phone as string || '',
+      const { rows: usersData } = await query<{ id: string; nickname: string | null; email: string | null; phone: string | null }>(
+        'SELECT id, nickname, email, phone FROM users WHERE id = ANY($1::uuid[])',
+        [userIds],
+      )
+      for (const u of usersData) {
+        userInfoMap.set(u.id, {
+          nickname: u.nickname || '',
+          email: u.email || '',
+          phone: u.phone || '',
         })
       }
     }
@@ -436,33 +383,24 @@ router.get('/sessions', adminAuth, async (req: Request, res: Response) => {
 })
 
 // 获取指定会话的完整对话记录
-router.get('/sessions/:userId/messages', adminAuth, async (req: Request, res: Response) => {
+router.get('/sessions/:userId/messages', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   const { userId } = req.params
 
   if (!userId) {
-    return res.status(400).json({ error: '缺少 userId' })
+    res.status(400).json({ error: '缺少 userId' })
+    return
   }
 
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('character_id', CS_CHARACTER_ID)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
+  const { rows } = await query<{ id: string; role: string; content: string; created_at: Date }>(
+    `SELECT id, role, content, created_at FROM messages
+     WHERE character_id=$1 AND user_id=$2 ORDER BY created_at ASC`,
+    [CS_CHARACTER_ID, userId],
+  )
 
-  if (error) {
-    console.error('[CS Admin] 获取会话详情失败:', error)
-    return res.status(500).json({ error: error.message })
-  }
-
-  // 过滤标记消息，剥离 [客服] 前缀，添加 sender 字段
-  const messages = (data || [])
-    .filter((msg) => {
-      const content = (msg.content as string) || ''
-      return !content.startsWith(CLOSE_MARKER)
-    })
+  const messages = rows
+    .filter((msg) => !(msg.content || '').startsWith(CLOSE_MARKER))
     .map((msg) => {
-      const content = (msg.content as string) || ''
+      const content = msg.content || ''
       if (content.startsWith(ADMIN_REPLY_PREFIX)) {
         return { ...msg, content: content.substring(ADMIN_REPLY_PREFIX.length), sender: 'admin' }
       }
@@ -473,48 +411,43 @@ router.get('/sessions/:userId/messages', adminAuth, async (req: Request, res: Re
 })
 
 // 管理员关闭会话
-router.post('/close/:userId', adminAuth, async (req: Request, res: Response) => {
+router.post('/close/:userId', requireAuth, requireAdmin, async (req: Request, res: Response) => {
   const { userId } = req.params
 
   if (!userId) {
-    return res.status(400).json({ error: '缺少 userId' })
+    res.status(400).json({ error: '缺少 userId' })
+    return
   }
 
-  const { error } = await supabase.from('messages').insert({
-    user_id: userId,
-    character_id: CS_CHARACTER_ID,
-    role: 'assistant',
-    content: `${CLOSE_MARKER}会话已关闭`,
-  })
-
-  if (error) {
-    console.error('[CS Admin] 关闭会话失败:', error)
-    return res.status(500).json({ error: error.message })
+  try {
+    await query(
+      'INSERT INTO messages (user_id, character_id, role, content) VALUES ($1, $2, $3, $4)',
+      [userId, CS_CHARACTER_ID, 'assistant', `${CLOSE_MARKER}会话已关闭`],
+    )
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[CS Admin] 关闭会话失败:', err)
+    res.status(500).json({ error: '关闭会话失败' })
   }
-
-  res.json({ success: true })
 })
 
-// 用户重新发起会话（清空历史消息）
-router.post('/reopen/:userId', async (req: Request, res: Response) => {
-  const { userId } = req.params
+// 用户重新发起会话（清空历史消息，仅本人）
+router.post('/reopen/:userId', requireAuth, async (req: Request, res: Response) => {
+  const auth = req.auth!
+  const targetUserId = req.params.userId
 
-  if (!userId) {
-    return res.status(400).json({ error: '缺少 userId' })
+  if (targetUserId !== auth.userId) {
+    res.status(403).json({ error: '只能重开自己的会话' })
+    return
   }
 
-  const { error } = await supabase
-    .from('messages')
-    .delete()
-    .eq('character_id', CS_CHARACTER_ID)
-    .eq('user_id', userId)
-
-  if (error) {
-    console.error('[CS] 重新发起会话失败:', error)
-    return res.status(500).json({ error: error.message })
+  try {
+    await query('DELETE FROM messages WHERE character_id=$1 AND user_id=$2', [CS_CHARACTER_ID, auth.userId])
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[CS] 重新发起会话失败:', err)
+    res.status(500).json({ error: '重新发起会话失败' })
   }
-
-  res.json({ success: true })
 })
 
 export default router

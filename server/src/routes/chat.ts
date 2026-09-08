@@ -1,12 +1,15 @@
 import { Router, Request, Response } from 'express'
-import { supabase } from '../supabase'
 import { PLATFORM_KNOWLEDGE } from '../services/platformKnowledge'
 import mammoth from 'mammoth'
 import pdfParse from 'pdf-parse'
+import { query } from '../db'
+import { requireAuth } from '../auth'
 
 const router = Router()
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY
+// 出站 AI 端点固定为官方地址（不做成可配置项，杜绝 SSRF 面）；模型名可经 env 覆盖
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash'
 
 function stripMarkdown(text: string): string {
   if (!text) return text
@@ -69,24 +72,26 @@ async function getCharacterSystemPrompt(
     return systemPrompt
   }
 
-  // 回退：从 Supabase 查询角色数据
-  const { data, error } = await supabase
-    .from('characters')
-    .select('*')
-    .eq('id', characterId)
-    .eq('user_id', userId)
-    .single()
+  // 回退：从数据库查询内置助手的"简版角色行"
+  const { rows } = await query<{
+    name: string | null; personality_traits: string | null; tone: string | null;
+    background: string | null; character_sayings: string | null; greeting: string | null
+  }>(
+    'SELECT name, personality_traits, tone, background, character_sayings, greeting FROM characters WHERE id=$1 AND user_id=$2',
+    [characterId, userId],
+  )
 
-  if (error || !data) {
+  if (rows.length === 0) {
     return '你是一个温柔、友好的AI助手。回复中不使用Markdown格式符号。'
   }
 
-  const name = data.name || '角色'
-  const personality = data.personality_traits || ['温柔', '友好']
-  const tone = data.tone || '温和'
-  const background = data.background || ''
-  const characterSayings = data.character_sayings || []
-  const greeting = data.greeting || '你好，很高兴见到你！'
+  const row = rows[0]
+  const name = row.name || '角色'
+  const personality = (row.personality_traits || '温柔、友好').split(/[,，、]/).map((s) => s.trim()).filter(Boolean)
+  const tone = row.tone || '温和'
+  const background = row.background || ''
+  const characterSayings = (row.character_sayings || '').split(/[,，、]/).map((s) => s.trim()).filter(Boolean)
+  const greeting = row.greeting || '你好，很高兴见到你！'
 
   let systemPrompt = `你是一个叫"${name}"的数字人角色。\n`
   systemPrompt += `你的性格特点：${personality.join('、')}。\n`
@@ -103,18 +108,17 @@ async function getCharacterSystemPrompt(
   return systemPrompt
 }
 
-// 获取对话历史（最近20条）
+// 获取对话历史（最近 N 条，按时间正序返回）
 async function getChatHistory(characterId: string, userId: string, limit: number = 20) {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('role, content')
-    .eq('character_id', characterId)
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-    .limit(limit)
-
-  if (error) return []
-  return data || []
+  const { rows } = await query<{ role: string; content: string }>(
+    `SELECT role, content FROM (
+       SELECT role, content, created_at FROM messages
+       WHERE character_id=$1 AND user_id=$2
+       ORDER BY created_at DESC LIMIT $3
+     ) recent ORDER BY created_at ASC`,
+    [characterId, userId, limit],
+  )
+  return rows
 }
 
 // 从文档中提取文本
@@ -139,7 +143,7 @@ async function extractTextFromDocument(fileType: string, base64Content: string):
 }
 
 // 调用 DeepSeek API（文本）
-async function callDeepSeekText(messages: object[], temperature: number = 0.7): Promise<string> {
+async function callDeepSeekText(messages: object[], temperature: number = 0.7, maxTokens: number = 1024): Promise<string> {
   const response = await fetch(DEEPSEEK_API_URL, {
     method: 'POST',
     headers: {
@@ -147,10 +151,10 @@ async function callDeepSeekText(messages: object[], temperature: number = 0.7): 
       'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'deepseek-v4-flash',
+      model: DEEPSEEK_MODEL,
       messages,
       temperature,
-      max_tokens: 1024,
+      max_tokens: maxTokens,
       stream: false,
     }),
   })
@@ -165,12 +169,14 @@ async function callDeepSeekText(messages: object[], temperature: number = 0.7): 
   return stripMarkdown(data.choices?.[0]?.message?.content || '抱歉，我暂时无法回复。')
 }
 
-// AI 对话接口（支持文档和图片）
-router.post('/completion', async (req: Request, res: Response) => {
-  const { characterId, userId, message, documentContent, imageContent, ocrText, characterProfile } = req.body
+// AI 对话接口（支持文档和图片；userId 取自 JWT）
+router.post('/completion', requireAuth, async (req: Request, res: Response) => {
+  const auth = req.auth!
+  const { characterId, message, documentContent, imageContent, ocrText, characterProfile } = req.body
 
-  if (!characterId || !userId || !message) {
-    return res.status(400).json({ error: '缺少必要参数' })
+  if (!characterId || !message) {
+    res.status(400).json({ error: '缺少必要参数' })
+    return
   }
 
   try {
@@ -180,10 +186,10 @@ router.post('/completion', async (req: Request, res: Response) => {
     } else {
       console.log('[Chat] 未收到角色设定，使用默认提示词')
     }
-    const systemPrompt = await getCharacterSystemPrompt(characterId, userId, characterProfile)
+    const systemPrompt = await getCharacterSystemPrompt(String(characterId), auth.userId, characterProfile)
 
     // 2. 获取对话历史
-    const history = await getChatHistory(characterId, userId, 20)
+    const history = await getChatHistory(String(characterId), auth.userId, 20)
 
     // 3. 处理文档内容
     let userMessageContent = message
@@ -211,7 +217,7 @@ router.post('/completion', async (req: Request, res: Response) => {
     // 5. 文本对话（可能包含文档内容或 OCR 文字）
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...history.map((h: { role: string; content: string }) => ({
+      ...history.map((h) => ({
         role: h.role === 'assistant' ? 'assistant' : 'user',
         content: h.content,
       })),
@@ -221,12 +227,10 @@ router.post('/completion', async (req: Request, res: Response) => {
     const reply = await callDeepSeekText(messages)
 
     // 6. 存储 AI 回复
-    await supabase.from('messages').insert({
-      user_id: userId,
-      character_id: characterId,
-      role: 'assistant',
-      content: reply,
-    })
+    await query(
+      'INSERT INTO messages (user_id, character_id, role, content) VALUES ($1, $2, $3, $4)',
+      [auth.userId, String(characterId), 'assistant', reply],
+    )
 
     res.json({ reply })
   } catch (error) {
@@ -236,11 +240,12 @@ router.post('/completion', async (req: Request, res: Response) => {
 })
 
 // 悬浮球 AI 助手接口
-router.post('/assistant', async (req: Request, res: Response) => {
-  const { userId, message, assistantName, assistantPersonality } = req.body
+router.post('/assistant', requireAuth, async (req: Request, res: Response) => {
+  const { message, assistantName, assistantPersonality } = req.body
 
-  if (!userId || !message) {
-    return res.status(400).json({ error: '缺少必要参数' })
+  if (!message) {
+    res.status(400).json({ error: '缺少必要参数' })
+    return
   }
 
   try {
@@ -264,11 +269,12 @@ router.post('/assistant', async (req: Request, res: Response) => {
 })
 
 // AI 解析文件内容为角色字段
-router.post('/parse-character', async (req: Request, res: Response) => {
+router.post('/parse-character', requireAuth, async (req: Request, res: Response) => {
   const { text } = req.body
 
   if (!text || !text.trim()) {
-    return res.status(400).json({ error: '缺少文件内容' })
+    res.status(400).json({ error: '缺少文件内容' })
+    return
   }
 
   const systemPrompt = `你是一个角色设定解析助手。用户会提供一段关于角色设定的文字描述，请从中提取以下字段并以 JSON 格式返回。
@@ -309,7 +315,7 @@ router.post('/parse-character', async (req: Request, res: Response) => {
         'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'deepseek-v4-flash',
+        model: DEEPSEEK_MODEL,
         messages,
         temperature: 0.1,
         max_tokens: 2048,
@@ -320,7 +326,8 @@ router.post('/parse-character', async (req: Request, res: Response) => {
     if (!response.ok) {
       const errorText = await response.text()
       console.error('[DeepSeek Parse API 错误]', response.status, errorText)
-      return res.status(500).json({ error: 'AI 解析服务调用失败' })
+      res.status(500).json({ error: 'AI 解析服务调用失败' })
+      return
     }
 
     const data = await response.json() as { choices?: { message?: { content?: string } }[] }
@@ -333,7 +340,8 @@ router.post('/parse-character', async (req: Request, res: Response) => {
       parsed = JSON.parse(content)
     } catch {
       console.error('[Parse Character] JSON 解析失败:', content)
-      return res.status(500).json({ error: 'AI 返回格式异常' })
+      res.status(500).json({ error: 'AI 返回格式异常' })
+      return
     }
 
     res.json({ data: parsed })

@@ -57,17 +57,22 @@ export function getOperitConfig() {
 }
 
 // 动态配置 Operit（运行时修改）
-// （运行时改写 Operit 配置的函数已删除：配置一律经 env，防未授权 SSRF）
+export function configureOperit(apiUrl: string, token: string) {
+  // 运行时更新（不持久化，重启后恢复 env 值）
+  ;(process.env as Record<string, string>).OPERIT_API_URL = apiUrl
+  ;(process.env as Record<string, string>).OPERIT_TOKEN = token
+  ;(process.env as Record<string, string>).TTS_ENGINE = 'operit'
+  console.log(`[Voice] Operit TTS 已配置: ${apiUrl}`)
+}
 
 // 从 Operit 获取可用音色
 async function fetchOperitVoices(): Promise<Array<{ name: string; id: string; gender: string; locale: string }>> {
   if (!isOperitEnabled()) return []
 
   try {
-    // 尝试从 Operit 获取音色列表（URL 经白名单校验）
-    const base = parseAllowedOutboundUrl(OPERIT_API_URL, 'lan')
-    base.pathname = base.pathname.replace(/\/api\/external-chat$/, '') + '/api/voices'
-    const resp = await fetch(base, {
+    // 尝试从 Operit 获取音色列表
+    const baseUrl = OPERIT_API_URL.replace(/\/api\/external-chat$/, '')
+    const resp = await fetch(`${baseUrl}/api/voices`, {
       headers: {
         'Authorization': `Bearer ${OPERIT_TOKEN}`,
       },
@@ -127,44 +132,16 @@ export async function listVoices() {
   return allVoices.length > 0 ? allVoices : DEFAULT_VOICES
 }
 
-// SSRF 防护：出站 URL 必须先经白名单解析，返回 URL 对象供 fetch 使用
-// - xfyun：仅 https + 官方域名（*.xfyun.cn）
-// - lan：Operit 局域网设备，仅 http(s) + 私网/环回 host
-function parseAllowedOutboundUrl(rawUrl: string, mode: 'xfyun' | 'lan'): URL {
-  let parsed: URL
-  try {
-    parsed = new URL(rawUrl)
-  } catch {
-    throw new Error('出站 URL 格式不合法')
-  }
-  const host = parsed.hostname
-  if (mode === 'xfyun') {
-    if (parsed.protocol !== 'https:' || !(host === 'xfyun.cn' || host.endsWith('.xfyun.cn'))) {
-      throw new Error('讯飞出站地址仅允许 https://*.xfyun.cn')
-    }
-    return parsed
-  }
-  const isLoopback = host === 'localhost' || host === '127.0.0.1' || host === '::1'
-  const isPrivateIp = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)
-  if (!isLoopback && !isPrivateIp) {
-    throw new Error('Operit 出站地址仅允许局域网地址')
-  }
-  return parsed
-}
-
 // Operit TTS 合成
 async function synthesizeWithOperit(text: string): Promise<Buffer> {
   if (!isOperitEnabled()) {
     throw new Error('Operit TTS 未启用')
   }
 
-  // SSRF 防护：Operit 是局域网设备，仅允许私网/环回地址（阻断借配置访问公网/云元数据）
-  const operitUrl = parseAllowedOutboundUrl(OPERIT_API_URL, 'lan')
-
   console.log(`[Voice] Operit TTS 合成: ${text.substring(0, 30)}...`)
 
   // 1. 发送合成请求，消息格式为 /voice_bar:say <文本>
-  const response = await fetch(operitUrl, {
+  const response = await fetch(OPERIT_API_URL, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${OPERIT_TOKEN}`,
@@ -198,14 +175,11 @@ async function synthesizeWithOperit(text: string): Promise<Buffer> {
   const filePath = srcMatch[1]
   console.log(`[Voice] Operit 音频路径: ${filePath}`)
 
-  // 3. 通过 Operit HTTP 服务下载音频文件（响应中只取路径，拼回已校验的 base，强制同源）
-  const base = parseAllowedOutboundUrl(OPERIT_API_URL, 'lan')
-  base.pathname = base.pathname.replace(/\/api\/external-chat$/, '')
-  const audioUrl = new URL(filePath, base)
-  if (audioUrl.origin !== base.origin) {
-    throw new Error('Operit 返回的音频路径越权（跨源），已拒绝下载')
-  }
-  console.log(`[Voice] 下载音频: ${audioUrl.toString()}`)
+  // 3. 通过 Operit HTTP 服务下载音频文件
+  // 构造 URL: 基础地址 + 文件路径
+  const baseUrl = OPERIT_API_URL.replace(/\/api\/external-chat$/, '')
+  const audioUrl = `${baseUrl}${filePath}`
+  console.log(`[Voice] 下载音频: ${audioUrl}`)
 
   const audioResponse = await fetch(audioUrl, {
     headers: {
