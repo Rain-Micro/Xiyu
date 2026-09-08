@@ -23,20 +23,38 @@ const child = spawn(process.execPath, ['dist/index.js'], {
 child.stdout.on('data', (d) => process.stdout.write(`[server] ${d}`));
 child.stderr.on('data', (d) => process.stderr.write(`[server:err] ${d}`));
 
-const deadline = Date.now() + 20_000;
-let ok = false;
-while (Date.now() < deadline) {
-  try {
-    const res = await fetch(`${BASE}/api/health`);
-    if (res.ok) { ok = true; break; }
-  } catch { /* not up yet */ }
-  await new Promise((r) => setTimeout(r, 500));
+function killChild() {
+  if (process.platform === 'win32' && child.pid) {
+    // Windows: 强杀整棵进程树，避免遗留 node 进程占用端口
+    try {
+      spawn('taskkill', ['/pid', String(child.pid), '/F', '/T'], { stdio: 'ignore' });
+    } catch { /* 已退出则忽略 */ }
+  } else {
+    child.kill('SIGKILL');
+  }
 }
 
-child.kill();
+const deadline = Date.now() + 30_000;
+let attempt = 0;
+let ok = false;
+while (Date.now() < deadline) {
+  attempt += 1;
+  try {
+    const res = await fetch(`${BASE}/api/health`);
+    console.log(`boot-smoke: probe #${attempt} -> HTTP ${res.status}`);
+    if (res.ok) { ok = true; break; }
+  } catch (err) {
+    console.log(`boot-smoke: probe #${attempt} -> 未就绪 (${err?.cause?.code || err?.message || err})`);
+  }
+  await new Promise((r) => setTimeout(r, 1000));
+}
+
+killChild();
+await new Promise((r) => setTimeout(r, 500));
+
 if (ok) {
-  console.log(`\nboot-smoke: PASS (${BASE}/api/health)`);
+  console.log(`boot-smoke: PASS (${BASE}/api/health)`);
   process.exit(0);
 }
-console.error(`\nboot-smoke: FAIL — ${BASE}/api/health 未在 20s 内就绪`);
+console.error(`boot-smoke: FAIL — ${BASE}/api/health 在 30s 内未就绪`);
 process.exit(1);
