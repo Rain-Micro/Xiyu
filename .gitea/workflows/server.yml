@@ -1,0 +1,47 @@
+name: server
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.gitea/workflows/server.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - '.gitea/workflows/server.yml'
+
+jobs:
+  linux:
+    name: linux 容器 · lint + 类型检查
+    runs-on: docker-linux
+    defaults:
+      run:
+        working-directory: server
+        shell: bash
+    steps:
+      - name: 检出代码
+        uses: https://gitea.com/actions/checkout@v4
+      - name: 安装依赖（npm ci，平台独立安装）
+        run: npm ci --no-audit --no-fund
+      - name: ESLint
+        run: npx eslint src --max-warnings 0
+      - name: TypeScript 类型检查
+        run: npx tsc --noEmit
+
+  windows:
+    name: windows 原生 · 类型检查 + 启动冒烟
+    runs-on: windows-native
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: 检出代码
+        uses: https://gitea.com/actions/checkout@v4
+      - name: Node 版本（要求主版本 24）
+        run: node -v
+      - name: 安装依赖（npm ci，平台独立安装）
+        run: npm ci --no-audit --no-fund
+      - name: 编译（tsc）
+        run: npx tsc
+      - name: 启动冒烟（/api/health 探活）
+        run: node scripts/boot-smoke.mjs

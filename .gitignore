@@ -21,6 +21,10 @@ server/.env.*
 app-debug.log
 .raticket/
 
+# CI 本机凭据与 runner 状态
+deploy/ci/runner/data/
+deploy/ci/.secrets/
+
 # 编辑器与工具
 .zcode/
 .vscode/

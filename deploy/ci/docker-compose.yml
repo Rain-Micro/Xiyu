@@ -1,0 +1,57 @@
+# 栖屿本机 CI/CD 集群
+# 启动：docker compose -p qiyu-ci up -d
+# 说明：Gitea 是长驻 git 服务；act_runner 通过挂载 docker.sock 以兄弟容器方式跑 job，
+#       job 容器 ephemeral（--rm），不占宿主端口，与 OpenSandbox（8080）共用 daemon 但网络隔离。
+name: qiyu-ci
+
+services:
+  gitea:
+    image: gitea/gitea:1.23
+    container_name: qiyu-gitea
+    restart: unless-stopped
+    ports:
+      - "3080:3000"   # Web UI  -> http://localhost:3080
+      - "3022:22"     # SSH
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__server__DOMAIN=localhost
+      - GITEA__server__ROOT_URL=http://localhost:3080/
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__server__SSH_PORT=3022
+      - GITEA__actions__ENABLED=true
+      - GITEA__service__DISABLE_REGISTRATION=true
+      - GITEA__security__INSTALL_LOCK=true
+      - GITEA__log__LEVEL=warn
+    volumes:
+      - gitea-data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  act-runner:
+    image: gitea/act_runner:0.2.11
+    container_name: qiyu-act-runner
+    restart: unless-stopped
+    depends_on:
+      gitea:
+        condition: service_healthy
+    command: ["daemon", "--config", "/config.yaml"]
+    environment:
+      # 首次启动用环境变量自动注册；.runner 凭据持久化在 runner/data/，之后 token 可轮换
+      - GITEA_INSTANCE_URL=http://qiyu-gitea:3000
+      - GITEA_RUNNER_NAME=qiyu-linux-runner
+      - GITEA_RUNNER_REGISTRATION_TOKEN=${RUNNER_REGISTRATION_TOKEN:?请在启动前 export RUNNER_REGISTRATION_TOKEN}
+    volumes:
+      - ./runner/config.yaml:/config.yaml:ro
+      - ./runner/data:/data
+      - //var/run/docker.sock:/var/run/docker.sock
+    mem_limit: 256m
+
+volumes:
+  gitea-data:
