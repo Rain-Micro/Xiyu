@@ -9,6 +9,7 @@ on:
       - 'index.html'
       - 'vite.config.ts'
       - 'package.json'
+      - '.npmrc'
       - '.gitea/workflows/client.yml'
   pull_request:
     paths:
@@ -18,6 +19,7 @@ on:
       - 'index.html'
       - 'vite.config.ts'
       - 'package.json'
+      - '.npmrc'
       - '.gitea/workflows/client.yml'
 
 jobs:
