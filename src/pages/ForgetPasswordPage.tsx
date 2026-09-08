@@ -9,7 +9,7 @@ import {
   Mail,
 } from 'lucide-react'
 import { useUIStore } from '@/stores'
-import { db } from '@/services/db'
+import { api, ApiError } from '@/services/apiClient'
 
 type Step = 'identity' | 'verify' | 'reset'
 type VerifyMethod = 'phone' | 'email'
@@ -24,10 +24,6 @@ function getPasswordStrength(password: string): PasswordStrength {
   if (password.length >= 8 && hasLetter && hasNumber && hasSpecial) return 'strong'
   if (password.length >= 6 && hasLetter && hasNumber) return 'medium'
   return 'weak'
-}
-
-function generateVerifyCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
 function maskPhone(phone: string): string {
@@ -55,8 +51,6 @@ export default function ForgetPasswordPage() {
   const [step, setStep] = useState<Step>('identity')
   const [account, setAccount] = useState('')
   const [verifyMethod, setVerifyMethod] = useState<VerifyMethod>('phone')
-  const [hasPhone, setHasPhone] = useState(false)
-  const [hasEmail, setHasEmail] = useState(false)
   const [mockCode, setMockCode] = useState('')
   const [codeInput, setCodeInput] = useState('')
   const [countdown, setCountdown] = useState(0)
@@ -67,7 +61,6 @@ export default function ForgetPasswordPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [notificationId, setNotificationId] = useState<string | null>(null)
-  const [foundUserId, setFoundUserId] = useState<string | null>(null)
 
   useEffect(() => {
     if (countdown <= 0) return
@@ -93,38 +86,36 @@ export default function ForgetPasswordPage() {
       return
     }
 
-    const dbUser = await db.users.where('username').equals(account).first()
-    if (!dbUser) {
-      setError('该账号不存在')
-      return
-    }
+    // 找回走服务端验证码（mock 模式回带 devCode 供联调显示）
+    try {
+      const result = await api<{ devCode?: string }>({
+        method: 'POST',
+        path: '/api/sms/send',
+        body: /^\d{11}$/.test(account.trim())
+          ? { target: account.trim(), channel: 'phone' }
+          : { target: account.trim(), channel: 'email' },
+      })
 
-    setFoundUserId(dbUser.id)
+      const nid = `forget-verify-${Date.now()}`
+      addNotification({
+        id: nid,
+        type: 'info',
+        title: '验证码',
+        message: result.devCode ? `您的验证码是：${result.devCode}` : '验证码已发送',
+        timestamp: Date.now(),
+        read: false,
+        duration: 0,
+      })
+      setNotificationId(nid)
+      setMockCode(result.devCode || '')
+      setCountdown(60)
+      setError('')
 
-    // 模拟判断是否有手机号和邮箱
-    const phoneBound = true
-    const emailBound = !!dbUser.email
-    setHasPhone(phoneBound)
-    setHasEmail(emailBound)
-
-    const code = generateVerifyCode()
-    const nid = `forget-verify-${Date.now()}`
-    addNotification({
-      id: nid,
-      type: 'info',
-      title: '验证码',
-      message: `您的验证码是：${code}`,
-      timestamp: Date.now(),
-      read: false,
-      duration: 0,
-    })
-    setNotificationId(nid)
-    setMockCode(code)
-    setCountdown(60)
-    setError('')
-
-    if (step === 'identity') {
-      setStep('verify')
+      if (step === 'identity') {
+        setStep('verify')
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '发送失败，请稍后重试')
     }
   }, [account, countdown, addNotification, step])
 
@@ -133,7 +124,8 @@ export default function ForgetPasswordPage() {
       setError('请输入验证码')
       return
     }
-    if (codeInput !== mockCode) {
+    // 有 devCode 时本地预校验（联调模式）；真实短信场景由服务端在重置时校验
+    if (mockCode && codeInput !== mockCode) {
       setError('验证码错误')
       return
     }
@@ -150,12 +142,21 @@ export default function ForgetPasswordPage() {
       setError('两次密码不一致')
       return
     }
-    if (!foundUserId) {
+    if (!codeInput) {
       setError('用户验证已过期，请重新开始')
       return
     }
 
-    await db.users.update(foundUserId, { password: newPassword })
+    try {
+      await api({
+        method: 'POST',
+        path: '/api/auth/reset-password',
+        body: { phone: account.trim(), code: codeInput, newPassword },
+      })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '重置失败，请稍后重试')
+      return
+    }
     setSuccess(true)
     if (notificationId) {
       removeNotification(notificationId)
@@ -266,9 +267,8 @@ export default function ForgetPasswordPage() {
               </p>
 
               <div className="w-full space-y-4">
-                {/* 验证方式选择 */}
-                {hasPhone && hasEmail && (
-                  <div className="flex gap-2">
+                {/* 验证方式选择（手机号/邮箱均可接收验证码） */}
+                <div className="flex gap-2">
                     <button
                       onClick={() => setVerifyMethod('phone')}
                       className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border transition-all ${
@@ -291,8 +291,7 @@ export default function ForgetPasswordPage() {
                       <Mail className="w-4 h-4" />
                       邮箱
                     </button>
-                  </div>
-                )}
+                </div>
 
                 {/* 显示选中的联系方式 */}
                 <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800 text-center text-sm text-gray-700 dark:text-gray-300">

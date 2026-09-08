@@ -2,17 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, ArrowLeft } from 'lucide-react'
 import { useAuthStore, useUIStore } from '@/stores'
-import { db } from '@/services/db'
+import { api, ApiError } from '@/services/apiClient'
 
 interface ChangeContactModalProps {
   isOpen: boolean
   onClose: () => void
   type: 'phone' | 'email' | null
   mode: 'bind' | 'change' | null
-}
-
-function generateVerifyCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
 export default function ChangeContactModal({
@@ -69,7 +65,7 @@ export default function ChangeContactModal({
     onClose()
   }, [notificationId, removeNotification, onClose])
 
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
     if (countdown > 0) return
     if (!newContact) {
       setError(isPhone ? '请输入手机号' : '请输入邮箱')
@@ -90,22 +86,33 @@ export default function ChangeContactModal({
       }
     }
 
-    const code = generateVerifyCode()
-    const nid = `change-contact-${Date.now()}`
-    addNotification({
-      id: nid,
-      type: 'info',
-      title: '验证码',
-      message: `您的验证码是：${code}`,
-      timestamp: Date.now(),
-      read: false,
-      duration: 0,
-    })
-    setNotificationId(nid)
-    setMockCode(code)
-    setCountdown(60)
-    setError('')
-    setStep('code')
+    // 发送验证码到新联系方式（mock 模式回带 devCode 供联调显示）
+    try {
+      const result = await api<{ devCode?: string }>({
+        method: 'POST',
+        path: '/api/sms/send',
+        body: isPhone
+          ? { target: newContact, channel: 'phone' }
+          : { target: newContact, channel: 'email' },
+      })
+      const nid = `change-contact-${Date.now()}`
+      addNotification({
+        id: nid,
+        type: 'info',
+        title: '验证码',
+        message: result.devCode ? `您的验证码是：${result.devCode}` : '验证码已发送',
+        timestamp: Date.now(),
+        read: false,
+        duration: 0,
+      })
+      setNotificationId(nid)
+      setMockCode(result.devCode || '')
+      setCountdown(60)
+      setError('')
+      setStep('code')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '发送失败，请稍后重试')
+    }
   }
 
   const handleVerifyCode = async () => {
@@ -113,7 +120,8 @@ export default function ChangeContactModal({
       setError('请输入验证码')
       return
     }
-    if (codeInput !== mockCode) {
+    // 有 devCode 时本地预校验（联调模式）；真实短信场景由服务端校验
+    if (mockCode && codeInput !== mockCode) {
       setError('验证码错误')
       return
     }
@@ -122,10 +130,20 @@ export default function ChangeContactModal({
       return
     }
 
-    await db.users.update(user.id, {
-      phone: isPhone ? newContact : user.phone,
-      email: isPhone ? user.email : newContact,
-    })
+    try {
+      await api({
+        method: 'POST',
+        path: '/api/auth/change-contact',
+        body: {
+          phone: isPhone ? newContact : undefined,
+          email: isPhone ? undefined : newContact,
+          code: codeInput,
+        },
+      })
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '更换绑定失败')
+      return
+    }
 
     // 实时更新 Zustand 中的用户信息
     updateUser({

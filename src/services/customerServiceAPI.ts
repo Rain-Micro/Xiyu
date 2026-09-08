@@ -1,4 +1,6 @@
-const API_URL = 'http://localhost:3001/api/customer-service'
+import { api } from './apiClient'
+
+// 客服 REST 封装。管理员接口由 JWT role 鉴权（adminEmail 参数已废弃，仅为兼容签名保留）
 
 interface CSChatResponse {
   reply: string
@@ -16,72 +18,43 @@ export interface CSSession {
 }
 
 export async function sendCSMessage(userId: string, userNickname: string, message: string, ocrText?: string, signal?: AbortSignal): Promise<CSChatResponse> {
-  const response = await fetch(`${API_URL}/chat`, {
+  return api<CSChatResponse>({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, userNickname, message, ocrText }),
+    path: '/api/customer-service/chat',
+    body: { userId, userNickname, message, ocrText },
     signal,
+    timeoutMs: 120000,
   })
-
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '客服消息发送失败')
-  return { reply: data.reply, transferred: data.transferred, sessionClosed: data.sessionClosed }
 }
 
 export async function getCSMessages(userId: string) {
-  const response = await fetch(`${API_URL}/messages/${userId}`)
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '获取客服消息失败')
-  return data
+  return api<{ messages: Record<string, unknown>[]; sessionClosed?: boolean }>({
+    path: `/api/customer-service/messages/${encodeURIComponent(userId)}`,
+  })
 }
 
 export async function reopenCSSession(userId: string) {
-  const response = await fetch(`${API_URL}/reopen/${userId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '重新发起会话失败')
-  return data
+  return api({ method: 'POST', path: `/api/customer-service/reopen/${encodeURIComponent(userId)}` })
 }
 
-// ─── 管理员接口 ───────────────────────────────────────────────
+// ─── 管理员接口（服务端按 JWT role 判定，不再信任 x-admin-email 头） ───
 
-export async function getCSSessions(adminEmail: string): Promise<CSSession[]> {
-  const response = await fetch(`${API_URL}/sessions`, {
-    headers: { 'x-admin-email': adminEmail },
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '获取会话列表失败')
+export async function getCSSessions(_adminEmail?: string): Promise<CSSession[]> {
+  const data = await api<{ sessions: CSSession[] }>({ path: '/api/customer-service/sessions' })
   return data.sessions || []
 }
 
-export async function getCSSessionDetail(userId: string, adminEmail: string) {
-  const response = await fetch(`${API_URL}/sessions/${userId}/messages`, {
-    headers: { 'x-admin-email': adminEmail },
+export async function getCSSessionDetail(userId: string, _adminEmail?: string) {
+  const data = await api<{ messages: unknown[] }>({
+    path: `/api/customer-service/sessions/${encodeURIComponent(userId)}/messages`,
   })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '获取会话详情失败')
   return data.messages || []
 }
 
-export async function adminReplyCS(userId: string, content: string, adminEmail: string) {
-  const response = await fetch(`${API_URL}/reply`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, content, adminEmail }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '回复失败')
-  return data
+export async function adminReplyCS(userId: string, content: string, _adminEmail?: string) {
+  return api({ method: 'POST', path: '/api/customer-service/reply', body: { userId, content } })
 }
 
-export async function closeCSSession(userId: string, adminEmail: string) {
-  const response = await fetch(`${API_URL}/close/${userId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-admin-email': adminEmail },
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '关闭会话失败')
-  return data
+export async function closeCSSession(userId: string, _adminEmail?: string) {
+  return api({ method: 'POST', path: `/api/customer-service/close/${encodeURIComponent(userId)}` })
 }

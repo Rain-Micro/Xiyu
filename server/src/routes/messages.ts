@@ -50,6 +50,18 @@ router.get('/:characterId', async (req: Request, res: Response) => {
   }
 })
 
+/** DELETE /api/messages — 清空当前用户的全部云端消息（注销不留痕等场景） */
+router.delete('/', async (req: Request, res: Response) => {
+  const auth = req.auth!
+  try {
+    await query('DELETE FROM messages WHERE user_id=$1', [auth.userId])
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[messages] 清空全部消息失败:', err)
+    res.status(500).json({ error: '清空消息失败' })
+  }
+})
+
 /** DELETE /api/messages/:characterId — 清空某角色消息（仅本人） */
 router.delete('/:characterId', async (req: Request, res: Response) => {
   const auth = req.auth!

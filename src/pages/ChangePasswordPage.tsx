@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, X } from 'lucide-react'
 import { useAuthStore } from '@/stores'
-import { db } from '@/services/db'
+import { api } from '@/services/apiClient'
 
 type PasswordStrength = 'weak' | 'medium' | 'strong'
 
@@ -55,27 +55,28 @@ export default function ChangePasswordPage() {
       return
     }
 
-    const dbUser = await db.users.where('username').equals(user.username).first()
-    if (!dbUser) {
-      setError('用户不存在')
-      return
-    }
-
-    if (dbUser.password !== oldPassword) {
+    try {
+      // 服务端校验旧密码并写入 bcrypt 哈希（云为权威源）
+      await api({ method: 'POST', path: '/api/auth/change-password', body: { oldPassword, newPassword } })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '修改失败'
       const nextCount = errorCount + 1
       setErrorCount(nextCount)
 
-      if (nextCount >= 10) {
-        setError('可联系客服申诉')
-      } else if (nextCount >= 3) {
-        setError('下次再试着修改吧')
+      if (message.includes('原密码')) {
+        if (nextCount >= 10) {
+          setError('可联系客服申诉')
+        } else if (nextCount >= 3) {
+          setError('下次再试着修改吧')
+        } else {
+          setError('密码错误')
+        }
       } else {
-        setError('密码错误')
+        setError(message)
       }
       return
     }
 
-    await db.users.update(dbUser.id, { password: newPassword })
     setSuccess(true)
     setError('')
     setErrorCount(0)

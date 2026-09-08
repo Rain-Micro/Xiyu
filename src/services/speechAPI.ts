@@ -1,18 +1,15 @@
 // src/services/speechAPI.ts
-const API_URL = 'http://localhost:3001/api'
+import { api } from './apiClient'
 
 export async function recognizeSpeech(audioBlob: Blob): Promise<string> {
   const formData = new FormData()
   formData.append('audio', audioBlob, 'recording.webm')
 
-  const response = await fetch(`${API_URL}/speech/recognize`, {
+  const data = await api<{ text?: string }>({
     method: 'POST',
-    body: formData,
+    path: '/api/speech/recognize',
+    formData,
+    timeoutMs: 60000, // 含 ffmpeg 转码与讯飞识别
   })
-
-  const data = await response.json() as { text?: string; error?: string }
-  if (!response.ok) {
-    throw new Error(data.error || '语音识别失败')
-  }
   return data.text || ''
 }

@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3001/api'
+import { api } from './apiClient'
 
 export interface SendCodeResult {
   success: boolean
@@ -9,40 +9,22 @@ function isPhoneNumber(contact: string): boolean {
   return /^\d{11}$/.test(contact.trim())
 }
 
+/** 发送验证码（mock 模式下服务端回带 devCode 供联调显示） */
 export async function sendVerifyCode(contact: string): Promise<SendCodeResult> {
   const isPhone = isPhoneNumber(contact)
-  const body = isPhone 
-    ? { phone: contact } 
-    : { email: contact }
-
-  const response = await fetch(`${API_URL}/sms/send`, {
+  const data = await api<{ success: boolean; devCode?: string }>({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    path: '/api/sms/send',
+    body: isPhone ? { target: contact, channel: 'phone' } : { target: contact, channel: 'email' },
   })
-
-  const data = await response.json()
-  if (!response.ok) {
-    throw new Error(data.error || '发送验证码失败')
-  }
-  return { success: true, mockCode: data.mockCode }
+  return { success: true, mockCode: data.devCode }
 }
 
 export async function verifyCode(contact: string, code: string): Promise<boolean> {
-  const isPhone = isPhoneNumber(contact)
-  const body = isPhone 
-    ? { phone: contact, code } 
-    : { email: contact, code }
-
-  const response = await fetch(`${API_URL}/sms/verify`, {
+  const data = await api<{ success: boolean }>({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    path: '/api/sms/verify',
+    body: { target: contact, code },
   })
-
-  const data = await response.json()
-  if (!response.ok) {
-    throw new Error(data.error || '验证码校验失败')
-  }
   return data.success
 }

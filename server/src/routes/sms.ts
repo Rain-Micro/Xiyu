@@ -71,8 +71,11 @@ router.post('/send', async (req: Request, res: Response) => {
         return
       }
     } else {
-      // mock 模式（默认）：不发送真实短信，验证码写入服务端日志供开发/联调使用
+      // mock 模式（默认）：不发送真实短信，验证码写入服务端日志并在响应中回带 devCode 供联调；
+      // 生产环境必须设 SMS_MODE=real，devCode 不会返回
       console.log(`[sms] mock 模式验证码 target=${String(target)} code=${code}`)
+      res.json({ success: true, expiresIn: CODE_TTL_MINUTES * 60, devCode: code })
+      return
     }
     res.json({ success: true, expiresIn: CODE_TTL_MINUTES * 60 })
   } catch (err) {

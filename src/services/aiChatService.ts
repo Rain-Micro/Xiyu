@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3001/api'
+import { api } from './apiClient'
 
 interface DocumentContent {
   fileType: 'docx' | 'pdf' | 'txt'
@@ -26,7 +26,7 @@ export interface CharacterProfileData {
 
 export async function getAIResponse(
   characterId: string,
-  userId: string,
+  _userId: string,
   message: string,
   documentContent?: DocumentContent,
   imageContent?: ImageContent,
@@ -34,47 +34,35 @@ export async function getAIResponse(
   signal?: AbortSignal,
   characterProfile?: CharacterProfileData
 ): Promise<string> {
-  const body: Record<string, unknown> = { characterId, userId, message }
+  const body: Record<string, unknown> = { characterId, message }
   if (documentContent) body.documentContent = documentContent
   if (imageContent) body.imageContent = imageContent
   if (ocrText) body.ocrText = ocrText
   if (characterProfile) body.characterProfile = characterProfile
 
-  const response = await fetch(`${API_URL}/chat/completion`, {
+  const data = await api<{ reply: string }>({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    path: '/api/chat/completion',
+    body,
     signal,
+    timeoutMs: 120000, // AI 生成耗时较长
   })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || 'AI 回复失败')
-  }
-
-  const data = await response.json()
   return data.reply
 }
 
 export async function getAssistantResponse(
-  userId: string,
+  _userId: string,
   message: string,
   assistantName?: string,
   assistantPersonality?: string,
   signal?: AbortSignal
 ): Promise<string> {
-  const response = await fetch(`${API_URL}/chat/assistant`, {
+  const data = await api<{ reply: string }>({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, message, assistantName, assistantPersonality }),
+    path: '/api/chat/assistant',
+    body: { message, assistantName, assistantPersonality },
     signal,
+    timeoutMs: 120000,
   })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.error || '助手回复失败')
-  }
-
-  const data = await response.json()
   return data.reply
 }

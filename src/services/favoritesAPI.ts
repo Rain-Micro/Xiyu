@@ -1,38 +1,21 @@
-const API_URL = 'http://localhost:3001/api/favorites'
-
 import type { Favorite } from '@/types'
+import { api } from './apiClient'
 
-export async function getFavorites(userId: string): Promise<Favorite[]> {
-  const response = await fetch(`${API_URL}?userId=${userId}`)
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '获取收藏列表失败')
+// 收藏 REST 封装（userId 由 JWT 携带，参数保留仅为兼容旧调用点）
+
+export async function getFavorites(_userId: string): Promise<Favorite[]> {
+  const data = await api<{ favorites: Favorite[] }>({ path: '/api/favorites' })
   return data.favorites || []
 }
 
-export async function addFavoriteAPI(favorite: Favorite, userId: string): Promise<void> {
-  const response = await fetch(`${API_URL}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ favorite, userId }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '添加收藏失败')
+export async function addFavoriteAPI(favorite: Favorite, _userId?: string): Promise<void> {
+  await api({ method: 'POST', path: '/api/favorites', body: { favorite } })
 }
 
 export async function updateFavoriteAPI(id: string, updates: Partial<Favorite>): Promise<void> {
-  const response = await fetch(`${API_URL}/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ updates }),
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '更新收藏失败')
+  await api({ method: 'PATCH', path: `/api/favorites/${encodeURIComponent(id)}`, body: { updates } })
 }
 
 export async function deleteFavoriteAPI(id: string): Promise<void> {
-  const response = await fetch(`${API_URL}/${id}`, {
-    method: 'DELETE',
-  })
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '删除收藏失败')
+  await api({ method: 'DELETE', path: `/api/favorites/${encodeURIComponent(id)}` })
 }

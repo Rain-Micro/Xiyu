@@ -18,6 +18,7 @@ import {
 } from '@/utils/fileParser'
 import { formatDate, sanitizeDate } from '@/utils/dateFormat'
 import { parseCharacterWithAI } from '@/services/characterImportAPI'
+import { API_BASE, authHeaders } from '@/services/apiClient'
 
 /* ──────────────────── TagInput 内联组件 ──────────────────── */
 
@@ -106,7 +107,7 @@ function VoiceSettings() {
   const voiceEnabled = formData.voiceEnabled ?? false
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/voice/voices')
+    fetch(`${API_BASE}/api/voice/voices`, { headers: authHeaders() })
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data.voices)) {
@@ -135,9 +136,9 @@ function VoiceSettings() {
     }
     setIsLoading(true)
     try {
-      const resp = await fetch('http://localhost:3001/api/voice/synthesize', {
+      const resp = await fetch(`${API_BASE}/api/voice/synthesize`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: '你好，我是你的数字人角色，很高兴认识你！',
           voice: selectedVoice,

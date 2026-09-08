@@ -13,7 +13,8 @@ import {
   Loader2,
 } from 'lucide-react'
 import { useAuthStore, useUIStore, useCharacterStore, useSettingsStore } from '@/stores'
-import { supabase, supabaseAdmin } from '@/services/supabase'
+import { api, ApiError } from '@/services/apiClient'
+import { register as authRegister, login as authLogin, loginBySms } from '@/services/authAPI'
 import { sendVerifyCode as sendSmsCode, verifyCode as verifySmsCode } from '@/services/smsAPI'
 import { ASSISTANT_SEEDS, createAssistantCharacter } from '@/services/assistantData'
 import { db } from '@/services/db'
@@ -59,30 +60,7 @@ function maskEmail(email: string): string {
   return name.slice(0, 2) + '*****@' + domain
 }
 
-// ── Supabase 数据映射工具 ─────────────────────────────────────
-
-function mapSupabaseUserToUser(su: Record<string, unknown>): User {
-  const phone = (su.phone as string) || undefined
-  const email = (su.email as string) || undefined
-  return {
-    id: su.id as string,
-    userId: (su.user_id as string) || (su.id as string),
-    username: phone || email || '',
-    password: (su.password_hash as string) || '',
-    nickname: (su.nickname as string) || undefined,
-    phone,
-    email,
-    birthDate: (su.birth_date as string) || new Date().toISOString(),
-    isAutoLogin: true,
-    isNewUser: (su.is_new_user as boolean) ?? false,
-    createdAt: su.created_at ? new Date(su.created_at as string).getTime() : Date.now(),
-    pendingDeletion: (su.pending_deletion as boolean) || undefined,
-    pendingDeletionAt: su.pending_deletion_at
-      ? new Date(su.pending_deletion_at as string).getTime()
-      : undefined,
-    avatarUrl: (su.avatar_url as string) || undefined,
-  }
-}
+// ── 服务端数据映射工具 ─────────────────────────────────────
 
 function mapSupabaseCharsToCharacters(rows: Record<string, unknown>[], userId: string): Character[] {
   return rows.map((sc) => {
@@ -154,6 +132,110 @@ function mapSupabaseCharsToCharacters(rows: Record<string, unknown>[], userId: s
       },
       createdAt: Date.now(),
     } as Character
+  })
+}
+
+/** 服务端 /api/auth/* 返回的用户 → 前端 User 形态 */
+function mapAuthUserToUser(u: { id: string; phone: string | null; email: string | null; nickname: string; role: 'user' | 'admin' }): User {
+  const phone = u.phone || undefined
+  const email = u.email || undefined
+  return {
+    id: u.id,
+    userId: u.id,
+    username: phone || email || '',
+    password: '',
+    nickname: u.nickname || undefined,
+    phone,
+    email,
+    birthDate: new Date().toISOString(),
+    isAutoLogin: true,
+    isNewUser: false,
+    createdAt: Date.now(),
+    role: u.role,
+  }
+}
+
+/** 登录成功后经 REST 加载角色（内置助手 + 自定义），云端覆盖本地 Dexie，缺失助手由本地种子补齐 */
+async function loadCharactersAfterLogin(dbUser: User): Promise<Character[]> {
+  let allCharacters: Character[] = []
+  let loadedAssistantIds: string[] = []
+  let hasCloudData = false
+
+  // 1. 内置助手（服务端 characters 表简版行 → 本地种子合成完整对象）
+  try {
+    const res = await api<{ characters: Record<string, unknown>[] }>({ path: '/api/characters/assistants' })
+    if (res.characters?.length) {
+      hasCloudData = true
+      allCharacters = mapSupabaseCharsToCharacters(res.characters, dbUser.id)
+      loadedAssistantIds = allCharacters
+        .filter(c => c.isAssistant)
+        .map(c => c.assistantId)
+        .filter((id): id is string => id !== undefined)
+      console.log('[Login] 从服务端加载了', allCharacters.length, '个内置助手')
+    }
+  } catch (err) {
+    console.warn('[Login] 内置助手加载失败:', err)
+  }
+
+  // 2. 自定义角色
+  try {
+    const res = await api<{ characters: Record<string, unknown>[] }>({ path: '/api/characters' })
+    if (res.characters?.length) {
+      hasCloudData = true
+      const cloudCustomChars = res.characters.map((row) => {
+        const charData = row.data as Character
+        return { ...charData, id: (row.id as string) || charData.id, userId: dbUser.id }
+      })
+      console.log('[Login] 从服务端加载了', cloudCustomChars.length, '个自定义角色')
+      allCharacters = [...allCharacters, ...cloudCustomChars]
+    }
+  } catch (err) {
+    console.warn('[Login] 自定义角色加载失败:', err)
+  }
+
+  // 3. 云端有数据 → 补充缺失的默认助手并用云端覆盖本地 Dexie；否则本地 Dexie + 默认助手
+  const defaultAssistants = ASSISTANT_SEEDS
+    .filter(seed => !loadedAssistantIds.includes(seed.assistantId))
+    .map(seed => {
+      const char = createAssistantCharacter(seed, dbUser.id)
+      char.isPinned = false
+      return char
+    })
+  allCharacters = [...allCharacters, ...defaultAssistants]
+
+  if (hasCloudData) {
+    try {
+      await db.characters.where('userId').equals(dbUser.id).delete()
+      for (const char of allCharacters) {
+        await db.characters.put(char)
+      }
+      console.log('[Login] 已用云端数据覆盖本地 Dexie')
+    } catch (err) {
+      console.warn('[Login] 覆盖本地 Dexie 失败:', err)
+    }
+  } else {
+    try {
+      const localChars = await db.characters.where('userId').equals(dbUser.id).toArray()
+      if (localChars.length > 0) {
+        allCharacters = localChars
+        console.log('[Login] 从本地 Dexie 加载了', localChars.length, '个角色')
+      }
+    } catch (err) {
+      console.warn('[Login] 本地 Dexie 加载失败:', err)
+    }
+  }
+
+  // 4. 去重（id + assistantId）
+  const uniqueCharacters = allCharacters.filter((char, index, self) =>
+    index === self.findIndex(c => c.id === char.id)
+  )
+  const seenAssistantIds = new Set<string>()
+  return uniqueCharacters.filter(c => {
+    if (c.isAssistant && c.assistantId) {
+      if (seenAssistantIds.has(c.assistantId)) return false
+      seenAssistantIds.add(c.assistantId)
+    }
+    return true
   })
 }
 
@@ -262,16 +344,22 @@ export default function WelcomePage() {
     } catch { /* ignore */ }
   }
 
-  // 查询所有用户（从 Supabase 加载）
+  // 已知账号列表：来自本机"记住密码"记录（不再全表拉取云端用户——那是原来的信息泄露面）
   useEffect(() => {
-    supabase
-      .from('users')
-      .select('id, phone, email, nickname, created_at, password_hash, avatar_url')
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setAllUsers(data.map((u) => mapSupabaseUserToUser(u)))
-        }
-      })
+    try {
+      const passwords = JSON.parse(localStorage.getItem('remembered-passwords') || '{}') as Record<string, string>
+      const accounts = Object.keys(passwords)
+      setAllUsers(accounts.map((acc) => ({
+        id: acc,
+        userId: acc,
+        username: acc,
+        password: passwords[acc],
+        birthDate: '',
+        isAutoLogin: true,
+        isNewUser: false,
+        createdAt: 0,
+      })))
+    } catch { /* ignore */ }
   }, [view])
 
   // 启动时只执行一次：读取 localStorage 数据
@@ -563,40 +651,34 @@ export default function WelcomePage() {
       return
     }
 
-    // 先用手机号查询，未找到再用邮箱查询
-    const { data: phoneUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('phone', loginAccount)
-      .maybeSingle()
-
-    let rawUser = phoneUser
-    if (!rawUser) {
-      const { data: emailUser } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', loginAccount)
-        .maybeSingle()
-      rawUser = emailUser
-    }
-
-    if (!rawUser) {
-      setError('not_found')
-      return
-    }
-
-    const dbUser = mapSupabaseUserToUser(rawUser as Record<string, unknown>)
-
-    if (loginMode === 'verifyCode') {
-      if (!formData.verifyCode) {
-        setError('请输入验证码')
-        return
+    // 经后端认证（密码 或 短信验证码），并获取正式 JWT
+    let auth: Awaited<ReturnType<typeof authLogin>>
+    try {
+      if (loginMode === 'verifyCode') {
+        if (!formData.verifyCode) {
+          setError('请输入验证码')
+          return
+        }
+        auth = await loginBySms(loginAccount, formData.verifyCode)
+      } else {
+        if (!formData.password) {
+          setError('请输入密码')
+          return
+        }
+        auth = await authLogin(loginAccount, formData.password)
       }
-      if (formData.verifyCode !== mockVerifyCode) {
-        try {
-          await verifySmsCode(loginAccount, formData.verifyCode)
-        } catch {
-          setError('验证码错误或已过期')
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 404) {
+          setError('not_found')
+          return
+        }
+        if (err.status === 403) {
+          setError(err.message)
+          return
+        }
+        if (loginMode === 'password' && err.status === 401) {
+          setError('wrong_password')
           const nextCount = passwordErrorCount + 1
           setPasswordErrorCount(nextCount)
           if (nextCount >= 3) {
@@ -605,58 +687,22 @@ export default function WelcomePage() {
           }
           return
         }
-      }
-    } else {
-      if (!formData.password) {
-        setError('请输入密码')
+        setError(err.message)
         return
       }
-      // 明文比对（后续升级为 bcrypt）
-      if (dbUser.password !== formData.password) {
-        setError('wrong_password')
-        const nextCount = passwordErrorCount + 1
-        setPasswordErrorCount(nextCount)
-        if (nextCount >= 3) {
-          setShowLoginHelpModal(true)
-          setPasswordErrorCount(0)
-        }
-        return
-      }
+      setError('登录失败，请稍后重试')
+      return
     }
 
-    // 检查账号是否处于待注销状态
-    if (dbUser.pendingDeletion && dbUser.pendingDeletionAt) {
-      const daysSince = (Date.now() - dbUser.pendingDeletionAt) / (1000 * 60 * 60 * 24)
-      if (daysSince > 14) {
-        // 超过14天，永久删除
-        await supabase.from('users').delete().eq('id', dbUser.id)
-        setError('该账号已永久注销，无法登录')
-        return
-      } else {
-        // 在14天内，自动取消注销
-        await supabase
-          .from('users')
-          .update({ pending_deletion: false, pending_deletion_at: null })
-          .eq('id', dbUser.id)
-        addNotification({
-          id: `account-recovered-${Date.now()}`,
-          type: 'success',
-          title: '账号已恢复',
-          message: '您的账号已成功取消注销，恢复正常使用',
-          timestamp: Date.now(),
-          read: false,
-          duration: 3000,
-        })
-      }
-    }
+    const dbUser = mapAuthUserToUser(auth.user)
 
     // 记住我持久化（保存账号名、密码和偏好）
     if (rememberMe) {
       localStorage.setItem(
         'remembered-credentials',
-        JSON.stringify({ username: loginAccount, password: dbUser.password })
+        JSON.stringify({ username: loginAccount, password: formData.password })
       )
-      setRememberedPassword(loginAccount, dbUser.password)
+      setRememberedPassword(loginAccount, formData.password)
       setRememberPref(loginAccount, true)
     } else {
       localStorage.removeItem('remembered-credentials')
@@ -666,153 +712,22 @@ export default function WelcomePage() {
     setPasswordErrorCount(0)
     login(dbUser)
 
-    // 登录成功后，给 Supabase 客户端设置一个 JWT
-    // 由于你的用户表里存了密码哈希，可以用它生成一个临时 token
-
-    // 在 login(dbUser) 之后添加
-    try {
-    // 用用户的 ID 和密码哈希生成一个简单的 token（实际生产环境应该用正式 JWT）
-      const token = btoa(JSON.stringify({
-        id: dbUser.id,
-        exp: Date.now() + 24 * 60 * 60 * 1000
-      }))
-    // 设置到 Supabase 客户端的 auth 中
-   await supabase.auth.setSession({
-      access_token: token,
-      refresh_token: token,
-    })
-    console.log('[Login] Supabase 认证已设置')
-  } catch (err) {
-    console.warn('[Login] 设置 Supabase 认证失败:', err)
-  }
-
-    // ─── 从 Supabase 加载用户的角色数据（云端优先） ──────────────────────
-
-// 1. 从 characters 表加载内置助手
-let allCharacters: Character[] = []
-let loadedAssistantIds: string[] = []
-let hasCloudData = false
-
-try {
-  const { data: charsData, error } = await supabase
-    .from('characters')
-    .select('*')
-    .eq('user_id', dbUser.id)
-
-  if (!error && charsData && charsData.length > 0) {
-    hasCloudData = true
-    allCharacters = mapSupabaseCharsToCharacters(
-      charsData as Record<string, unknown>[],
-      dbUser.id,
-    )
-    loadedAssistantIds = allCharacters
-      .filter(c => c.isAssistant)
-      .map(c => c.assistantId)
-      .filter((id): id is string => id !== undefined)
-    console.log('[Login] 从 characters 表加载了', allCharacters.length, '个内置助手')
-  }
-} catch (err) {
-  console.warn('[Login] characters 表加载失败:', err)
-}
-
-// 2. 从 user_characters 表加载自定义角色（使用 supabaseAdmin 绕过 RLS）
-try {
-  console.log('[Login] 查询 user_characters 表, user_id:', dbUser.id)
-  const { data: userCharsData, error: userCharsError } = await supabaseAdmin
-    .from('user_characters')
-    .select('*')
-    .eq('user_id', dbUser.id)
-
-  console.log('[Login] user_characters 查询结果:', {
-    hasError: !!userCharsError,
-    error: userCharsError?.message,
-    dataCount: userCharsData?.length || 0,
-    sample: userCharsData?.[0] ? { id: userCharsData[0].id, hasData: !!userCharsData[0].data } : null
-  })
-
-  if (!userCharsError && userCharsData && userCharsData.length > 0) {
-    hasCloudData = true
-    const cloudCustomChars = userCharsData.map((row: any) => {
-      const charData = row.data as Character
-      return {
-        ...charData,
-        id: row.id || charData.id,
-        userId: dbUser.id,
-      }
-    })
-    console.log('[Login] 从 user_characters 表加载了', cloudCustomChars.length, '个自定义角色')
-    allCharacters = [...allCharacters, ...cloudCustomChars]
-  } else if (userCharsError) {
-    console.warn('[Login] user_characters 表查询失败:', userCharsError)
-  }
-} catch (err) {
-  console.warn('[Login] user_characters 表加载失败:', err)
-}
-
-// 3. 判断云端是否有数据
-if (hasCloudData) {
-  // 云端有数据 → 补充缺失的默认助手
-  const defaultAssistants = ASSISTANT_SEEDS
-    .filter(seed => !loadedAssistantIds.includes(seed.assistantId))
-    .map(seed => {
-      const char = createAssistantCharacter(seed, dbUser.id)
-      char.isPinned = false
-      return char
-    })
-  allCharacters = [...allCharacters, ...defaultAssistants]
-  console.log('[Login] 云端有数据，补充了', defaultAssistants.length, '个默认助手')
-
-  // 用云端数据覆盖本地 Dexie（保证一致性）
-  try {
-    await db.characters.where('userId').equals(dbUser.id).delete()
-    for (const char of allCharacters) {
-      await db.characters.put(char)
+    if (auth.restored) {
+      addNotification({
+        id: `account-recovered-${Date.now()}`,
+        type: 'success',
+        title: '账号已恢复',
+        message: '您的账号已成功取消注销，恢复正常使用',
+        timestamp: Date.now(),
+        read: false,
+        duration: 3000,
+      })
     }
-    console.log('[Login] 已用云端数据覆盖本地 Dexie')
-  } catch (err) {
-    console.warn('[Login] 覆盖本地 Dexie 失败:', err)
-  }
-} else {
-  // 云端完全为空 → 使用本地 Dexie + 默认助手
-  console.log('[Login] 云端无数据，尝试从本地 Dexie 加载')
-  try {
-    const localChars = await db.characters.where('userId').equals(dbUser.id).toArray()
-    if (localChars.length > 0) {
-      allCharacters = localChars
-      console.log('[Login] 从本地 Dexie 加载了', localChars.length, '个角色')
-    }
-  } catch (err) {
-    console.warn('[Login] 本地 Dexie 加载失败:', err)
-  }
 
-  // 补充默认助手
-  const defaultAssistants = ASSISTANT_SEEDS
-    .filter(seed => !loadedAssistantIds.includes(seed.assistantId))
-    .map(seed => {
-      const char = createAssistantCharacter(seed, dbUser.id)
-      char.isPinned = false
-      return char
-    })
-  allCharacters = [...allCharacters, ...defaultAssistants]
-  console.log('[Login] 补充了', defaultAssistants.length, '个默认助手')
-}
-
-// 4. 去重后设置角色到 store
-// 根据 id 去重，优先保留先出现的（云端 > 默认助手 > 本地）
-const uniqueCharacters = allCharacters.filter((char, index, self) =>
-  index === self.findIndex(c => c.id === char.id)
-)
-// 额外根据 assistantId 去重（防止同一助手出现两次但 id 不同）
-const seenAssistantIds = new Set<string>()
-const finalCharacters = uniqueCharacters.filter(c => {
-  if (c.isAssistant && c.assistantId) {
-    if (seenAssistantIds.has(c.assistantId)) return false
-    seenAssistantIds.add(c.assistantId)
-  }
-  return true
-})
-setCharacters(finalCharacters)
-console.log('[Login] 最终加载了', finalCharacters.length, '个角色（去重前:', allCharacters.length, '）')
+    // ─── 经 REST 加载角色（云端优先，本地种子补齐） ──────────────────────
+    const finalCharacters = await loadCharactersAfterLogin(dbUser)
+    setCharacters(finalCharacters)
+    console.log('[Login] 最终加载了', finalCharacters.length, '个角色')
 
     // 检查是否已选择AI助手
     const assistantSelected = localStorage.getItem(`assistant-selected-${dbUser.id}`)
@@ -878,53 +793,32 @@ console.log('[Login] 最终加载了', finalCharacters.length, '个角色（去�
       }
     }
 
-    // 检查是否已被注册
-    const checkColumn = registerContactType === 'phone' ? 'phone' : 'email'
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq(checkColumn, contactValue)
-      .maybeSingle()
-    if (existingUser) {
-      setInputError(registerContactType)
-      setError(registerContactType === 'phone' ? '该手机号已被注册' : '该邮箱已被注册')
-      return
-    }
-
-    // 创建新用户（写入 Supabase）
-    const { data: newUser, error: insertError } = await supabase
-      .from('users')
-      .insert({
-        email: registerContactType === 'email' ? formData.email : null,
-        phone: registerContactType === 'phone' ? formData.phone : null,
+    // 注册（服务端做查重、bcrypt 哈希与内置助手播种）
+    try {
+      await authRegister({
+        phone: registerContactType === 'phone' ? formData.phone : undefined,
+        email: registerContactType === 'email' ? formData.email : undefined,
+        password: formData.password,
         nickname: formData.nickname.trim(),
-        password_hash: formData.password,
-        avatar_url: registerAvatarUrl || null,
-        created_at: new Date().toISOString(),
+        smsCode: formData.verifyCode,
       })
-      .select()
-      .single()
-
-    if (insertError || !newUser) {
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 409) {
+          setInputError(registerContactType)
+          setError(registerContactType === 'phone' ? '该手机号已被注册' : '该邮箱已被注册')
+          return
+        }
+        setError(err.message)
+        return
+      }
       setError('注册失败，请稍后重试')
       return
     }
 
-    // 为新用户自动创建五位内置助手（批量插入）
-    const { error: assistantInsertError } = await supabase.from('characters').insert(
-      ASSISTANT_SEEDS.map((seed) => ({
-        user_id: newUser.id,
-        name: seed.name,
-        type: 'builtin_assistant',
-        assistant_id: seed.assistantId,
-        relationship: '朋友',
-        user_title: '你',
-        user_note: '',
-        is_pinned: false,
-      }))
-    )
-    if (assistantInsertError) {
-      console.warn('[Register] 创建内置助手失败:', assistantInsertError.message)
+    // 注册时选的头像在首次登录后补传（服务端注册接口不接受头像）
+    if (registerAvatarUrl) {
+      localStorage.setItem('pending-avatar', registerAvatarUrl)
     }
 
     setRegisterSuccess(true)
@@ -964,7 +858,7 @@ console.log('[Login] 最终加载了', finalCharacters.length, '个角色（去�
     if (!isNew) {
       localStorage.setItem(`tutorial-skipped-${currentUser.id}`, 'true')
     }
-    await supabase.from('users').update({ is_new_user: isNew }).eq('id', currentUser.id)
+    // isNewUser 仅本地状态（新手引导流程用）
     login({ ...currentUser, isNewUser: isNew })
   }
   setShowUserType(false)

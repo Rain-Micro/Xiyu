@@ -49,6 +49,7 @@ import AssistantProfileEditor from '@/components/AssistantProfileEditor'
 import { getImageFromPasteEvent } from '@/utils/imageUtils'
 import { SpeechRecognitionManager } from '@/utils/speechRecognition'
 import { recognizeSpeech } from '@/services/speechAPI'
+import { API_BASE, authHeaders } from '@/services/apiClient'
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────
 
@@ -938,9 +939,9 @@ function VoiceBar({ text }: { text: string }) {
     setIsLoading(true)
     setError(false)
     try {
-      const response = await fetch('http://localhost:3001/api/voice/synthesize', {
+      const response = await fetch(`${API_BASE}/api/voice/synthesize`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, voice: voiceParam }),
       })
       if (!response.ok) throw new Error('合成失败')

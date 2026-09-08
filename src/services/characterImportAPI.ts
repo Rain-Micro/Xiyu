@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3001/api/chat/parse-character'
+import { api } from './apiClient'
 
 export interface ParsedCharacterData {
   name?: string
@@ -22,12 +22,11 @@ export interface ParsedCharacterData {
 }
 
 export async function parseCharacterWithAI(text: string): Promise<ParsedCharacterData> {
-  const response = await fetch(API_URL, {
+  const result = await api<{ data?: ParsedCharacterData }>({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    path: '/api/chat/parse-character',
+    body: { text },
+    timeoutMs: 120000,
   })
-  const result = await response.json()
-  if (!response.ok) throw new Error(result.error || 'AI 解析失败')
   return result.data || {}
 }

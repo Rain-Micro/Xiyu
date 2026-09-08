@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { RefreshCw, BookOpen, User, Settings } from 'lucide-react'
 import { useAuthStore, useSettingsStore, useUIStore, useCharacterStore } from '@/stores'
 import { db } from '@/services/db'
+import { api, getToken } from '@/services/apiClient'
+import { fetchMe } from '@/services/authAPI'
 import WelcomePage from '@/pages/WelcomePage'
 import MainPage from '@/pages/MainPage'
 import ForgetPasswordPage from '@/pages/ForgetPasswordPage'
@@ -98,6 +100,32 @@ function App() {
       loadSettings() // 登录后重新加载设置，确保 defaultAssistantId 恢复
     }
   }, [isLoggedIn, user?.id, loadCharacters, loadSettings])
+
+  // 会话校验：刷新后用 JWT 向服务端确认身份并刷新 role；过期则登出
+  useEffect(() => {
+    if (!isLoggedIn || !getToken()) return
+    const { logout, updateUser } = useAuthStore.getState()
+    fetchMe()
+      .then(({ user: me }) => {
+        updateUser({ role: me.role, nickname: me.nickname, avatarUrl: me.avatar_url })
+        // 注册时暂存待上传的头像
+        const pending = localStorage.getItem('pending-avatar')
+        if (pending) {
+          api<{ user?: { avatar_url?: string } }>({ method: 'PATCH', path: '/api/users/me', body: { avatar: pending } })
+            .then((res: { user?: { avatar_url?: string } }) => {
+              updateUser({ avatarUrl: res.user?.avatar_url || pending })
+            })
+            .catch(() => { /* 头像补传失败不影响使用 */ })
+            .finally(() => localStorage.removeItem('pending-avatar'))
+        }
+      })
+      .catch((err) => {
+        console.warn('[App] 会话已失效:', err?.message || err)
+        if (!getToken()) {
+          logout()
+        }
+      })
+  }, [isLoggedIn])
 
   // 主题切换
   useEffect(() => {

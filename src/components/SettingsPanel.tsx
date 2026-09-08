@@ -5,8 +5,6 @@ import { useSettingsStore, useUIStore, useAuthStore } from '@/stores'
 import { useNavigate } from 'react-router-dom'
 import { db } from '@/services/db'
 
-const ADMIN_EMAILS = ['2968679835@qq.com']
-
 const tabs = [
   { id: 'basic', label: '基础设置', icon: Globe },
   { id: 'save', label: '保存设置', icon: Save },
@@ -21,7 +19,8 @@ export default function SettingsPanel() {
   const [activeTab, setActiveTab] = useState('basic')
   const [showClearDataConfirm, setShowClearDataConfirm] = useState(false)
 
-  const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
+  // 管理员由服务端 JWT role 驱动（不再信任前端邮箱白名单）
+  const isAdmin = user?.role === 'admin'
 
   const handleClearAllData = async () => {
     // 清空 IndexedDB 用户数据

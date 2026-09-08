@@ -111,6 +111,31 @@ router.post('/login', async (req: Request, res: Response) => {
       res.status(401).json({ error: '账号或密码错误' })
       return
     }
+
+    // 待注销状态处理：超 14 天自动物理删除；14 天内登录自动恢复
+    const pending = await query<{ pending_deletion: boolean; pending_deletion_at: Date | null }>(
+      'SELECT pending_deletion, pending_deletion_at FROM users WHERE id=$1',
+      [user.id],
+    )
+    if (pending.rows[0]?.pending_deletion) {
+      const since = pending.rows[0].pending_deletion_at
+      const days = since ? (Date.now() - new Date(since).getTime()) / 86_400_000 : 0
+      if (days > 14) {
+        await query('DELETE FROM users WHERE id=$1', [user.id])
+        res.status(403).json({ error: '该账号已永久注销，无法登录' })
+        return
+      }
+      await query('UPDATE users SET pending_deletion=FALSE, pending_deletion_at=NULL WHERE id=$1', [user.id])
+      // 恢复标记：前端据此提示"账号已恢复"
+      res.json({
+        success: true,
+        restored: true,
+        token: signToken({ userId: user.id, role: user.role }),
+        user: { id: user.id, phone: user.phone, email: user.email, nickname: user.nickname, role: user.role },
+      })
+      return
+    }
+
     const token = signToken({ userId: user.id, role: user.role })
     res.json({
       success: true,
@@ -238,12 +263,12 @@ router.post('/reset-password', async (req: Request, res: Response) => {
 })
 
 /**
- * POST /api/auth/change-contact  更换绑定手机号/邮箱（需密码确认）
- * body: { password, phone?, email? }
+ * POST /api/auth/change-contact  更换绑定手机号/邮箱
+ * body: { phone?, email?, code } — code 为发送到"新联系方式"的验证码（证明对该联系方式的所有权），账号归属由 JWT 保证
  */
 router.post('/change-contact', requireAuth, async (req: Request, res: Response) => {
   const auth = req.auth!
-  const { password, phone, email } = req.body || {}
+  const { phone, email, code } = req.body || {}
   if (phone && !isPhone(String(phone))) {
     res.status(400).json({ error: '手机号格式不正确' })
     return
@@ -252,14 +277,15 @@ router.post('/change-contact', requireAuth, async (req: Request, res: Response) 
     res.status(400).json({ error: '邮箱格式不正确' })
     return
   }
-  if (!phone && !email) {
-    res.status(400).json({ error: '请提供要更换的手机号或邮箱' })
+  if ((!phone && !email) || !code) {
+    res.status(400).json({ error: '请提供新联系方式及验证码' })
     return
   }
+  const target = String(phone || email)
   try {
-    const found = await query<{ password_hash: string }>('SELECT password_hash FROM users WHERE id=$1', [auth.userId])
-    if (found.rows.length === 0 || !verifyPassword(String(password || ''), found.rows[0].password_hash)) {
-      res.status(401).json({ error: '密码错误' })
+    const codeOk = await verifySmsCode(target, String(code))
+    if (!codeOk) {
+      res.status(401).json({ error: '验证码错误或已过期' })
       return
     }
     if (phone) {

@@ -14,7 +14,8 @@ export interface User {
   createdAt: number
   pendingDeletion?: boolean
   pendingDeletionAt?: number
-  avatarUrl?: string         // 用户自定义头像（Base64 或 URL）
+  avatarUrl?: string         // 用户自定义头像（URL，指向服务端头像端点）
+  role?: 'user' | 'admin'    // 服务端角色（管理员入口由它驱动）
 }
 
 // 角色档案

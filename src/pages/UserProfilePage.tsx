@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore, useUIStore } from '@/stores'
 import { sanitizeDate } from '@/utils/dateFormat'
-import { supabase } from '@/services/supabase'
+import { api } from '@/services/apiClient'
 import ChangeContactModal from '@/components/ChangeContactModal'
 
 function getAvatarColor(name: string): string {
@@ -75,7 +75,7 @@ export default function UserProfilePage() {
 
   const handleSaveNickname = async () => {
     if (!user) return
-    await supabase.from('users').update({ nickname }).eq('id', user.id)
+    await api({ method: 'PATCH', path: '/api/users/me', body: { nickname } })
     useAuthStore.getState().updateUser({ nickname })
     addNotification({
       id: `nickname-save-${Date.now()}`,
@@ -91,7 +91,7 @@ export default function UserProfilePage() {
   const handleSaveBirthday = async () => {
     if (!user) return
     const cleanBirthday = sanitizeDate(birthday)
-    await supabase.from('users').update({ birthday: cleanBirthday }).eq('id', user.id)
+    await api({ method: 'PATCH', path: '/api/users/me', body: { birthday: cleanBirthday } })
     useAuthStore.getState().updateUser({ birthday: cleanBirthday })
     addNotification({
       id: `birthday-save-${Date.now()}`,
@@ -154,15 +154,12 @@ export default function UserProfilePage() {
   const handleSaveChatCloudResponse = async (syncCloud: boolean) => {
     setShowSaveChatCloud(false)
     if (!user) return
-    // 执行注销
-    await supabase.from('users').update({
-      pending_deletion: true,
-      pending_deletion_at: new Date().toISOString(),
-    }).eq('id', user.id)
+    // 执行注销排期（服务端 14 天生效；期间登录自动恢复）
+    await api({ method: 'POST', path: '/api/users/me/deletion', body: {} })
     if (!syncCloud) {
-      // 用户选择不保留云端聊天记录，删除云端消息
+      // 用户选择不保留云端聊天记录，清空本人全部云端消息
       try {
-        await supabase.from('messages').delete().eq('user_id', user.id)
+        await api({ method: 'DELETE', path: '/api/messages' })
       } catch (err) {
         console.warn('[Account] 删除云端消息失败:', err)
       }
@@ -215,8 +212,16 @@ export default function UserProfilePage() {
         const cropped = cropToCircle(img)
         setAvatarUrl(cropped)
         if (user) {
-          await supabase.from('users').update({ avatar_url: cropped }).eq('id', user.id)
-          useAuthStore.getState().updateUser({ avatarUrl: cropped })
+          try {
+            const res = await api<{ success: boolean; user: { avatar_url?: string } }>({
+              method: 'PATCH',
+              path: '/api/users/me',
+              body: { avatar: cropped },
+            })
+            useAuthStore.getState().updateUser({ avatarUrl: res.user?.avatar_url || cropped })
+          } catch (err) {
+            console.warn('[Account] 头像上传失败:', err)
+          }
         }
         addNotification({
           id: `avatar-change-${Date.now()}`,
