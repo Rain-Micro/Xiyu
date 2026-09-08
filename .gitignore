@@ -34,3 +34,6 @@ deploy/ci/.secrets/
 # 系统垃圾
 Thumbs.db
 .DS_Store
+
+# Mimosa 安全钩子本地状态
+.mimosa/
