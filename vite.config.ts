@@ -2,9 +2,16 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import electron from 'vite-plugin-electron'
+import { readFileSync } from 'node:fs'
+
+// UI 版本号唯一来源：根 package.json（经 __APP_VERSION__ 注入，SettingsPanel 展示）
+const appVersion = JSON.parse(readFileSync('./package.json', 'utf8')).version as string
 
 export default defineConfig({
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [
     react(),
     electron([

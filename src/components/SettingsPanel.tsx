@@ -234,7 +234,7 @@ export default function SettingsPanel() {
             </div>
             <div>
               <h3 className="text-xl font-bold text-gray-800 dark:text-white">栖屿数字人平台</h3>
-              <p className="text-gray-500 dark:text-gray-400">版本 1.0.0 (Demo版)</p>
+              <p className="text-gray-500 dark:text-gray-400">版本 {__APP_VERSION__}</p>
             </div>
             <div className="text-sm text-gray-500 dark:text-gray-400 space-y-1">
               <p>社团开源项目</p>
