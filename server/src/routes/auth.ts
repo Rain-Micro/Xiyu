@@ -13,6 +13,11 @@ function isEmail(v: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
 }
 
+/** 标记最近一次登录时刻（毫秒）：单会话互斥的基准值 */
+async function markLogin(userId: string): Promise<void> {
+  await query('UPDATE users SET last_token_iat=$1 WHERE id=$2', [Date.now(), userId])
+}
+
 function isPhone(v: string): boolean {
   return /^1\d{10}$/.test(v)
 }
@@ -80,6 +85,7 @@ router.post('/register', async (req: Request, res: Response) => {
     // 播种内置助手（名称取自种子表；此处仅落"简版角色行"，完整 Character 由前端本地种子合成）
     await seedBuiltinAssistants(user.id, { liu: '琉', sa: '飒', che: '澈', yi: '熠', xi: '汐' })
 
+    await markLogin(user.id)
     const token = signToken({ userId: user.id, role: user.role })
     res.json({ success: true, token, user: { id: user.id, phone: phone || null, email: email || null, nickname: name, role: user.role } })
   } catch (err) {
@@ -127,6 +133,7 @@ router.post('/login', async (req: Request, res: Response) => {
       }
       await query('UPDATE users SET pending_deletion=FALSE, pending_deletion_at=NULL WHERE id=$1', [user.id])
       // 恢复标记：前端据此提示"账号已恢复"
+      await markLogin(user.id)
       res.json({
         success: true,
         restored: true,
@@ -136,6 +143,7 @@ router.post('/login', async (req: Request, res: Response) => {
       return
     }
 
+    await markLogin(user.id)
     const token = signToken({ userId: user.id, role: user.role })
     res.json({
       success: true,
@@ -173,6 +181,7 @@ router.post('/login/sms', async (req: Request, res: Response) => {
       res.status(404).json({ error: '该手机号尚未注册' })
       return
     }
+    await markLogin(user.id)
     const token = signToken({ userId: user.id, role: user.role })
     res.json({ success: true, token, user: { id: user.id, phone: String(phone), email: user.email, nickname: user.nickname, role: user.role } })
   } catch (err) {
