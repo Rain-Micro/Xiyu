@@ -43,6 +43,8 @@ npm run electron:build
 
 前端 API 地址经 `.env.local` 的 `VITE_API_URL` 配置（默认 `http://localhost:3001`）。参考 `.env.example` 与 `server/.env.example`。
 
+> **拿到源码如何完整跑起来（环境准备/本地开发/生产部署/密钥配置/踩坑）**：见 [`docs/deployment-guide.md`](docs/deployment-guide.md)。
+
 ## 端口登记表
 
 占用前先对照本表，新增端口必须登记。
