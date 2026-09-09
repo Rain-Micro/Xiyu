@@ -972,17 +972,12 @@ export default function WelcomePage() {
 
   return (
     <div className="h-full w-full flex flex-col items-center justify-center relative overflow-hidden">
-      {/* 背景装饰 */}
+      {/* 背景装饰（Clay：去玻璃光球，改燕麦虚线框装饰） */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-primary-400/20 rounded-full blur-3xl animate-float" />
-        <div
-          className="absolute bottom-20 right-20 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl animate-float"
-          style={{ animationDelay: '1s' }}
-        />
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-pink-400/10 rounded-full blur-3xl animate-float"
-          style={{ animationDelay: '2s' }}
-        />
+        <div className="absolute top-16 left-16 w-56 h-56 border border-dashed border-oat rounded-3xl rotate-6" />
+        <div className="absolute bottom-16 right-16 w-72 h-72 border border-dashed border-oat-light rounded-3xl -rotate-3" />
+        <div className="absolute top-24 right-24 w-20 h-20 bg-matcha-300 rounded-full" />
+        <div className="absolute bottom-28 left-28 w-12 h-12 bg-lemon-400 rounded-full" />
       </div>
 
       {/* 左上角返回按钮 */}

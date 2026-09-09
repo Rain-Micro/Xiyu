@@ -17,15 +17,12 @@ export default function AssistantWelcomePage({ assistantId, onStart }: Assistant
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-ube-800 dark:bg-gray-900 p-4"
     >
-      {/* 背景装饰 */}
+      {/* 背景装饰（Clay：扁平色板区块 + 燕麦虚线） */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 left-10 w-64 h-64 bg-primary-300/20 rounded-full blur-3xl animate-float" />
-        <div
-          className="absolute bottom-10 right-10 w-80 h-80 bg-purple-300/20 rounded-full blur-3xl animate-float"
-          style={{ animationDelay: '1.5s' }}
-        />
+        <div className="absolute top-10 left-10 w-64 h-64 border border-dashed border-ube-300/40 rounded-3xl rotate-6" />
+        <div className="absolute bottom-10 right-10 w-80 h-80 bg-white/5 rounded-3xl -rotate-3" />
       </div>
 
       <motion.div
@@ -53,7 +50,7 @@ export default function AssistantWelcomePage({ assistantId, onStart }: Assistant
           initial={{ scale: 0, rotate: -180 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ delay: 0.5, type: 'spring', damping: 12 }}
-          className={`inline-flex items-center justify-center w-32 h-32 rounded-3xl bg-gradient-to-br ${seed.avatarColor} shadow-2xl mb-6`}
+          className={`inline-flex items-center justify-center w-32 h-32 rounded-3xl bg-gradient-to-br ${seed.avatarColor} shadow-hard mb-6`}
         >
           <span className="text-5xl font-bold text-white">{seed.name}</span>
         </motion.div>
@@ -108,7 +105,7 @@ export default function AssistantWelcomePage({ assistantId, onStart }: Assistant
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
           onClick={onStart}
-          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-primary-500 to-purple-500 text-white font-medium text-base shadow-lg hover:shadow-xl transition-shadow"
+          className="w-full py-3.5 rounded-xl bg-white text-black font-medium text-base shadow-hard transition-transform hover:-rotate-2"
         >
           开始使用
         </motion.button>

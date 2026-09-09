@@ -5,6 +5,25 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.1.0] - 2026-09-09 · 内测版（Clay 设计系统）
+
+**仅客户端，服务端无任何改动。** 按 Clay 设计系统整体换肤（用户提供的 DESIGN.md）。
+
+### Changed 变更
+- 设计令牌全量重映射：暖奶油画布（#faf9f7）+ 燕麦色边框 + 命名色板
+  （Matcha/Slushie/Lemon/Ube/Pomegranate/Blueberry/Dragonfruit）；primary 全站换为 Matcha 绿
+- 圆角刻度：卡片 24px / 区块 40px；阴影系统换为三层 clay 阴影 + 硬偏移悬浮阴影
+- 签名交互：主/次按钮悬浮旋转 -8° + 跳起 + 硬偏移阴影；幽灵按钮悬浮染龙果色
+- 字体：Space Grotesk（Roobert 为专有字体不可用，取几何个性近似替代；其 OpenType
+  stylistic sets 不可迁移）+ Space Mono；离线打包（@fontsource）
+- 去玻璃拟态与"AIGC 感"元素：Welcome 光球改燕麦虚线装饰；主页双渐变大卡改
+  Matcha/Ube 扁平色板卡（带大写标签）；助手欢迎页改 Ube 深色区块；顶栏玻璃按钮改 clay 按钮
+- 中性灰整体转暖（gray 刻度重映射），暗色模式随之变暖
+
+### 适配说明（与原设计的差异）
+- 悬浮位移 -80% 在密集应用内过激，收敛为 -20%（保留旋转与硬阴影签名）
+- 聊天气泡等深层界面本轮依赖令牌层换肤，未逐像素手调（内测收集反馈后迭代）
+
 ## [2.0.3] - 2026-09-09
 
 实测修复版（客户端 + 服务端）。
