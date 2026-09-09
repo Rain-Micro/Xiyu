@@ -25,21 +25,26 @@ export interface RegisterPayload {
   smsCode?: string
 }
 
+interface LoginOpts {
+  /** 记住我：token 持久化（关软件免登录 7 天）；否则仅当前进程有效 */
+  remember?: boolean
+}
+
 export async function register(payload: RegisterPayload): Promise<AuthResponse> {
   const res = await api<AuthResponse>({ method: 'POST', path: '/api/auth/register', body: payload })
-  setToken(res.token)
+  setToken(res.token, false) // 注册产生的会话仅当前进程有效（随后仍需手动登录）
   return res
 }
 
-export async function login(account: string, password: string): Promise<AuthResponse> {
+export async function login(account: string, password: string, opts: LoginOpts = {}): Promise<AuthResponse> {
   const res = await api<AuthResponse>({ method: 'POST', path: '/api/auth/login', body: { account, password } })
-  setToken(res.token)
+  setToken(res.token, opts.remember ?? true)
   return res
 }
 
-export async function loginBySms(phone: string, code: string): Promise<AuthResponse> {
+export async function loginBySms(phone: string, code: string, opts: LoginOpts = {}): Promise<AuthResponse> {
   const res = await api<AuthResponse>({ method: 'POST', path: '/api/auth/login/sms', body: { phone, code } })
-  setToken(res.token)
+  setToken(res.token, opts.remember ?? true)
   return res
 }
 

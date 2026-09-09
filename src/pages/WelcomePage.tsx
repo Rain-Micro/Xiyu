@@ -662,13 +662,13 @@ export default function WelcomePage() {
           setError('请输入验证码')
           return
         }
-        auth = await loginBySms(loginAccount, formData.verifyCode)
+        auth = await loginBySms(loginAccount, formData.verifyCode, { remember: rememberMe })
       } else {
         if (!formData.password) {
           setError('请输入密码')
           return
         }
-        auth = await authLogin(loginAccount, formData.password)
+        auth = await authLogin(loginAccount, formData.password, { remember: rememberMe })
       }
     } catch (err) {
       if (err instanceof ApiError) {
@@ -1358,8 +1358,9 @@ export default function WelcomePage() {
                     <label
                       htmlFor="remember-me"
                       className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none"
+                      title="勾选后 7 天内重开应用免登录；不勾则关闭应用即需重新登录"
                     >
-                      记住我
+                      记住我（7 天免登录）
                     </label>
                   </div>
                   <button

@@ -183,6 +183,13 @@ function App() {
   // 不做成响应式：登录动作本身置 isLoggedIn=true 时若还在 '/'，会把带引导弹窗的
   // WelcomePage（助手选择/新手询问）抢先卸载——新账号将不再被询问偏好（R3 引入的回归）
   useEffect(() => {
+    // 会话一致性：token 是会话的真源（未勾"记住我"的 token 存 sessionStorage，随进程结束清除）。
+    // 冷启动无 token（或已过期被清）→ 立即清登录态，落到登录页而非"无 token 的幽灵已登录态"
+    if (!getToken()) {
+      const { isLoggedIn: wasLogged } = useAuthStore.getState()
+      if (wasLogged) useAuthStore.getState().logout()
+      return
+    }
     const { isLoggedIn: logged, user: u } = useAuthStore.getState()
     const atRoot = window.location.hash === '' || window.location.hash === '#' || window.location.hash === '#/'
     if (logged && u && atRoot) {

@@ -5,16 +5,21 @@ const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'http:/
 
 const TOKEN_KEY = 'qiyu-token'
 
-export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
+/**
+ * token 存储：remember=true 落 localStorage（关软件后 7 天免登录）；
+ * 否则落 sessionStorage（关闭应用即清除，重开需重新登录）。
+ * 兼容旧版：已存在于 localStorage 的 token 继续按持久会话生效。
+ */
+export function setToken(token: string | null, remember = true): void {
+  localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+  if (token) {
+    ;(remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token)
+  }
 }
 
-export function setToken(token: string | null): void {
-  if (token) {
-    localStorage.setItem(TOKEN_KEY, token)
-  } else {
-    localStorage.removeItem(TOKEN_KEY)
-  }
+export function getToken(): string | null {
+  return sessionStorage.getItem(TOKEN_KEY) ?? localStorage.getItem(TOKEN_KEY)
 }
 
 /** 供二进制等特殊请求直接 fetch 时携带鉴权头 */
