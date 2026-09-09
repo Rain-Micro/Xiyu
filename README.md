@@ -84,3 +84,10 @@ node -e "const fs=require('fs');const a='win-unpacked/resources/app.asar';const 
 ## CI/CD
 
 本机 Docker 运行 Gitea + Act Runner（`deploy/ci/`），双平台门禁：Linux 容器跑 lint/单测/集成测试；Windows 原生 runner 跑 NSIS 打包、Electron 启动探活与 Windows 服务端冒烟。见 `deploy/ci/README.md`。
+
+## 代码托管与迁移说明
+
+- 当前主远端为**本地 Gitea**（`deploy/ci/` 页签，`origin`）。
+- 曾计划将仓库迁移至 GitHub（`Liu-bit264/xiyu`）并交由新负责人（单主）接管，但因 **GitHub 偶发故障未能完成转仓**；本地对 GitHub 的 remote 引用已移除。
+- 若后续恢复迁移或改由他人接管，重新添加远端即可（`git remote add <name> <url>`），无需改动本仓库其它内容。历史情况详见 `docs/developer-onboarding.md`。
+
