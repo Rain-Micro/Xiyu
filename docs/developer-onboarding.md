@@ -6,7 +6,8 @@
 ## 0. 一句定位
 
 社团 AI 数字人陪伴平台：AI 角色扮演（DeepSeek）+ Live2D/3D 渲染 + 语音（讯飞）+ AI/人工客服 + 管理后台。
-纯远程 C/S：Electron 客户端（`Liu-bit264/xiyu`）+ 云端 Express + PostgreSQL（阿里云轻量 Win）。
+纯远程 C/S：Electron 客户端 + 云端 Express + PostgreSQL（阿里云轻量 Win）。协作以本地 Gitea `origin` 为准；
+原 GitHub 仓库（`Liu-bit264/xiyu`）已删除、由单主重建，远端以单主提供的地址为准。
 
 ## 1. 管理员账户
 
@@ -52,7 +53,7 @@
 | 部署服务端 dist | 本地 `cd server && npm run build && tar -czf qiyu-server.tgz package.json package-lock.json dist db` → scp → 远端解压 → `node db\migrate.mjs` → `net start qiyu-server`（先杀 443 监听进程） |
 | 出客户端安装包 | `VITE_API_URL=http://101.132.47.12:443 npm run build && npx electron-builder --dir && node -e "(asar断言)" && ISCC.exe /DMyAppVersion=x.y.z deploy/windows/qiyu.iss` |
 | 热更新发版 | 后台「系统配置」改 latest_version/download_url；客户端启动查 `GET /api/version` |
-| GitHub 发版 | `git tag vX.Y.Z && git push github vX.Y.Z`（Actions 自动构建并挂 Release） |
+| GitHub 发版 | 待单主重建远端后使用：`git tag vX.Y.Z && git push <新远端> vX.Y.Z`（Actions 自动构建并挂 Release；现本地无该远端） |
 
 ## 5. 必须知晓的坑（经验沉淀）
 

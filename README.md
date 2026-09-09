@@ -88,6 +88,6 @@ node -e "const fs=require('fs');const a='win-unpacked/resources/app.asar';const 
 ## 代码托管与迁移说明
 
 - 当前主远端为**本地 Gitea**（`deploy/ci/` 页签，`origin`）。
-- 曾计划将仓库迁移至 GitHub（`Liu-bit264/xiyu`）并交由新负责人（单主）接管，但因 **GitHub 偶发故障未能完成转仓**；本地对 GitHub 的 remote 引用已移除。
-- 若后续恢复迁移或改由他人接管，重新添加远端即可（`git remote add <name> <url>`），无需改动本仓库其它内容。历史情况详见 `docs/developer-onboarding.md`。
+- 曾计划将仓库迁移至 GitHub（`Liu-bit264/xiyu`）并交由新负责人（单主）接管，但因 **GitHub 偶发故障未能完成转仓**。原 GitHub 仓库已删除，将在新负责人（单主）名下**重新创建并推送**。
+- 内部协作一律以本地 Gitea `origin` 为准；若日后迁移恢复或确定新的 GitHub 远端，重新 `git remote add` 即可，无需改动本仓库其它内容。历史与运维情况详见 `docs/developer-onboarding.md`。
 
