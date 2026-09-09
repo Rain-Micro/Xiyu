@@ -42,10 +42,13 @@ export function signToken(user: AuthUser): string {
 /** 单会话时钟容差：覆盖 JWT iat 秒级截断与同秒并发登录 */
 const TOKEN_IAT_SKEW_MS = 5_000
 
-/** 从 Authorization: Bearer <jwt> 解出用户；无效/缺失/已被新登录顶替返回 401 */
+/** 从 Authorization: Bearer <jwt>（或 <img> 场景的 ?t=<jwt> 查询参数）解出用户 */
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const header = req.headers.authorization || ''
-  const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+  const queryToken = (req.query as Record<string, unknown>).t
+  const token = header.startsWith('Bearer ')
+    ? header.slice(7)
+    : (typeof queryToken === 'string' ? queryToken : '')
   if (!token) {
     res.status(401).json({ error: '未登录' })
     return

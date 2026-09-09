@@ -3,6 +3,7 @@ dotenv.config() // 必须最先加载，确保后续 import 能读取到环境�
 
 import express from 'express'
 import cors from 'cors'
+import path from 'path'
 import authRoutes from './routes/auth'
 import userRoutes from './routes/users'
 import messageRoutes from './routes/messages'
@@ -44,8 +45,19 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes) // 登录/注册/验证码本身即认证前置
 app.use('/api/sms', smsRoutes)
 
-// 头像静态文件（文件名服务端生成，带缓存）
-app.use('/api/avatars', express.static(AVATAR_DIR, { index: false, maxAge: '7d', fallthrough: false }))
+// 头像文件（受保护：文件名白名单防穿越；JWT 经 Bearer 头或 ?t= 查询参数，后者供 <img> 使用）
+app.get('/api/avatars/:file', requireAuth, (req, res) => {
+  const file = String(req.params.file || '')
+  if (!/^[A-Za-z0-9_-]+\.(png|jpe?g|webp)$/.test(file)) {
+    res.status(400).json({ error: '非法文件名' })
+    return
+  }
+  res.sendFile(path.resolve(AVATAR_DIR, file), { maxAge: '7d' }, (err) => {
+    if (err && !res.headersSent) {
+      res.status(404).json({ error: '头像不存在' })
+    }
+  })
+})
 
 // ─── 受保护端点（JWT Bearer） ───
 app.use('/api/users', requireAuth, userRoutes)
