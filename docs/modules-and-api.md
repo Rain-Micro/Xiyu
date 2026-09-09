@@ -68,7 +68,14 @@
 | GET | /stats/trend?days=14 | 注册/消息/DAU 按日 |
 | GET | /stats/top-characters?limit=10 | 热门角色 |
 | GET·PUT | /config · /config/:key | app_config（键白名单：announcement / latest_version / download_url / notify_email） |
+| GET | /secrets | 服务密钥清单（**密钥类仅掩码回显，全值永不出服务端**；source=后台覆盖/.env/未配置） |
+| PUT | /secrets/:key | 更新密钥（空串=清除覆盖回退 .env；已接线键见下；审计只记掩码） |
 | GET | /audit-logs?page=&action= | 操作审计（封禁/重置/改配置均落 audit_logs） |
+
+**运行时配置分层**：`app_config`（`sk:` 前缀覆盖层）> 环境变量 > 代码默认值（5 秒缓存）。
+已接线的可管理键：DEEPSEEK_API_KEY / DEEPSEEK_MODEL / SMTP_HOST/PORT/USER/PASS / NOTIFY_EMAIL /
+SMS_MODE / SMS_API_URL / SMS_API_TOKEN / JWT_SECRET（修改后约 5 秒全会话失效）。
+讯飞语音类密钥仍走 env（模块初始化读取），接入后再列入清单。
 
 ## 数据库（server/db/migrations/，权威 schema）
 

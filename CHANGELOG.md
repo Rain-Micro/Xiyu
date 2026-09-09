@@ -5,6 +5,22 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.3.0] - 2026-09-09 · 服务密钥运行时管理版
+
+### Added 新增
+- 管理后台新增「服务密钥」页：DeepSeek 密钥/模型、SMTP、Spug 短信、JWT 密钥等运行时管理——
+  写入即生效（JWT 修改后约 5 秒全部会话失效），密钥类仅掩码回显、全值永不出服务端，审计只记掩码；
+  清空保存 = 清除覆盖回退 .env
+- 前端路由守卫 RequireAuth：未登录（或无 token）访问受保护页一律回登录页
+
+### Changed 变更
+- 服务端配置读取分层：app_config（sk: 前缀覆盖层）> 环境变量 > 代码默认值，5 秒缓存；
+  已接线：DeepSeek(chat/客服)、SMTP/通知邮箱、Spug 短信(SMS_MODE/URL/TOKEN)、JWT_SECRET、客服邮箱
+- 验证码生成改用加密随机源（crypto.randomInt）
+
+### Fixed 修复
+- 打开软件直接进入选择角色/创建角色页：无 token 的残留登录态不再进入受保护页（RequireAuth + 冷启动清态）
+
 ## [2.2.1] - 2026-09-09
 
 ### Fixed 修复

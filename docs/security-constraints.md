@@ -6,8 +6,13 @@
 ## 1. 密钥管理
 
 - **任何密钥/密码/令牌禁止入库**：真实凭据只存在于 gitignored 的 `.env` / `server/.env` 与部署机；仓库只放 `.env.example`（变量名+空值）
-- 前端**永不**持有数据库凭证或服务级密钥（历史上 service_role key 打包进浏览器的教训）；客户端唯一凭据是用户 JWT（localStorage `qiyu-token`）
+- 前端**永不**持有数据库凭证或服务级密钥（历史上 service_role key 打包进浏览器的教训）；客户端唯一凭据是用户 JWT（localStorage `qiyu-token` / sessionStorage `qiyu-token`，由「记住我」决定持久性）
 - 生产 `server/.env` 权限仅限部署通道；轮换密钥时同步更新部署机并重启
+- **运行时密钥（2.3.0+）**：管理后台「服务密钥」页可运行时更新三方密钥（存 app_config `sk:` 覆盖层，优先于 env，5 秒缓存）——
+  - 密钥类**只回显头尾掩码**，全值永不出服务端（GET 也不返回）；审计只记掩码
+  - 清空保存 = 清除覆盖回退 env
+  - 已接线：DeepSeek/SMTP/Spug 短信/JWT_SECRET；讯飞语音类待接入（仍走 env）
+  - JWT_SECRET 运行时更换 ⇒ 约 5 秒后全部会话失效（设计行为，用于"紧急踢全体下线"）
 
 ## 2. SQL：必须参数化
 
