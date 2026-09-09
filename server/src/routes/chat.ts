@@ -3,13 +3,13 @@ import { PLATFORM_KNOWLEDGE } from '../services/platformKnowledge'
 import mammoth from 'mammoth'
 import pdfParse from 'pdf-parse'
 import { query } from '../db'
+import { getRuntimeConfig } from '../config'
 import { requireAuth } from '../auth'
 
 const router = Router()
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY
-// 出站 AI 端点固定为官方地址（不做成可配置项，杜绝 SSRF 面）；模型名可经 env 覆盖
+// 出站 AI 端点固定为官方地址（不做成可配置项，杜绝 SSRF 面）；密钥/模型名支持后台运行时覆盖
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash'
+const DEEPSEEK_MODEL_FALLBACK = 'deepseek-v4-flash'
 
 function stripMarkdown(text: string): string {
   if (!text) return text
@@ -148,10 +148,10 @@ async function callDeepSeekText(messages: object[], temperature: number = 0.7, m
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+      'Authorization': `Bearer ${await getRuntimeConfig('DEEPSEEK_API_KEY')}`,
     },
     body: JSON.stringify({
-      model: DEEPSEEK_MODEL,
+      model: (await getRuntimeConfig('DEEPSEEK_MODEL')) ?? DEEPSEEK_MODEL_FALLBACK,
       messages,
       temperature,
       max_tokens: maxTokens,
@@ -312,10 +312,10 @@ router.post('/parse-character', requireAuth, async (req: Request, res: Response)
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        'Authorization': `Bearer ${await getRuntimeConfig('DEEPSEEK_API_KEY')}`,
       },
       body: JSON.stringify({
-        model: DEEPSEEK_MODEL,
+        model: (await getRuntimeConfig('DEEPSEEK_MODEL')) ?? DEEPSEEK_MODEL_FALLBACK,
         messages,
         temperature: 0.1,
         max_tokens: 2048,

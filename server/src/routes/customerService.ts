@@ -3,12 +3,12 @@ import { PLATFORM_KNOWLEDGE } from '../services/platformKnowledge'
 import { sendCustomerServiceEmail } from '../services/emailService'
 import { query } from '../db'
 import { requireAuth, requireAdmin } from '../auth'
+import { getRuntimeConfig } from '../config'
 
 const router = Router()
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY
-// 出站 AI 端点固定为官方地址（不做成可配置项，杜绝 SSRF 面）；模型名可经 env 覆盖
+// 出站 AI 端点固定为官方地址（杜绝 SSRF）；密钥/模型名支持后台运行时覆盖
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash'
+const DEEPSEEK_MODEL_FALLBACK = 'deepseek-v4-flash'
 
 const CS_CHARACTER_ID = 'customer-service'
 
@@ -83,10 +83,10 @@ async function callAICustomerService(userMessage: string, history: { role: strin
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+      'Authorization': `Bearer ${await getRuntimeConfig('DEEPSEEK_API_KEY')}`,
     },
     body: JSON.stringify({
-      model: DEEPSEEK_MODEL,
+      model: (await getRuntimeConfig('DEEPSEEK_MODEL')) ?? DEEPSEEK_MODEL_FALLBACK,
       messages,
       temperature: 0.5,
       max_tokens: 1024,

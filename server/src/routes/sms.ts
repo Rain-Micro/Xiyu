@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import crypto from 'crypto'
 import { query } from '../db'
+import { getRuntimeConfig } from '../config'
 import { sendSmsCode } from '../services/sms'
 import { sendVerifyCodeEmail } from '../services/emailService'
 
@@ -58,13 +59,14 @@ router.post('/send', async (req: Request, res: Response) => {
       [String(target), sha256(code), CODE_TTL_MINUTES],
     )
 
+    const smsMode = (await getRuntimeConfig('SMS_MODE')) || 'mock'
     if (useEmail) {
       const result = await sendVerifyCodeEmail(String(target), code)
       if (!result.success) {
         res.status(502).json({ error: result.message || '邮件发送失败' })
         return
       }
-    } else if (process.env.SMS_MODE === 'real') {
+    } else if (smsMode === 'real') {
       const result = await sendSmsCode(String(target), code)
       if (!result.success) {
         res.status(502).json({ error: result.message || '短信发送失败' })

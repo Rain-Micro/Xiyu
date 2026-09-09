@@ -1,7 +1,6 @@
 import axios from 'axios'
-
-const SMS_API_URL = process.env.SMS_API_URL
-const SMS_API_TOKEN = process.env.SMS_API_TOKEN
+import crypto from 'crypto'
+import { getRuntimeConfig } from '../config'
 
 export interface SendSmsResult {
   success: boolean
@@ -10,22 +9,31 @@ export interface SendSmsResult {
 }
 
 export function generateVerifyCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString()
+  // 验证码需不可预测：用加密随机源替代 Math.random
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
 }
 
 export async function sendSmsCode(phone: string, code: string): Promise<SendSmsResult> {
+  // Spug 地址与令牌支持后台运行时配置（app_config sk: 覆盖 env），每次发送前读取
+  const [apiUrl, apiToken] = await Promise.all([
+    getRuntimeConfig('SMS_API_URL'),
+    getRuntimeConfig('SMS_API_TOKEN'),
+  ])
+  if (!apiUrl) {
+    return { success: false, message: '未配置短信接口（SMS_API_URL）' }
+  }
   try {
     // Spug 推送助手的短信验证码接口使用 GET 方式
     // URL 格式: https://push.spug.cc/sms/{模板编码}?code=验证码&to=手机号
     const response = await axios.get(
-      SMS_API_URL || '',
+      apiUrl,
       {
         params: {
           code: code,
           to: phone,
         },
         headers: {
-          'Authorization': `Bearer ${SMS_API_TOKEN}`,
+          'Authorization': `Bearer ${apiToken || ''}`,
         },
         timeout: 10000,
       }

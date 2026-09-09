@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import crypto from 'crypto'
 import { query } from '../db'
 import { hashPassword } from '../auth' // requireAdmin 由入口统一挂载（/api/admin 前置中间件）
+import { MANAGEABLE_KEYS, isManageableKey, getRuntimeConfig, setRuntimeConfig, maskValue } from '../config'
 
 const router = Router()
 
@@ -277,6 +278,58 @@ router.put('/config/:key', async (req: Request, res: Response) => {
   } catch (err) {
     console.error('[admin/config/put]', err)
     res.status(500).json({ error: '配置保存失败' })
+  }
+})
+
+// ─── 服务密钥（三方 API-KEY 运行时管理） ─────────────────────
+
+/** GET /api/admin/secrets —— 清单 + 掩码回显（全值永不出服务端） */
+router.get('/secrets', async (_req: Request, res: Response) => {
+  try {
+    const items = await Promise.all(MANAGEABLE_KEYS.map(async (k) => {
+      const v = await getRuntimeConfig(k.key)
+      const inEnv = Boolean(process.env[k.key])
+      const inDb = (await query(
+        'SELECT 1 FROM app_config WHERE key=$1', ['sk:' + k.key],
+      )).rowCount !== 0
+      return {
+        key: k.key,
+        label: k.label,
+        hint: k.hint || null,
+        secret: k.secret,
+        configured: Boolean(v),
+        source: inDb ? 'config' : (inEnv ? 'env' : null),
+        // 掩码回显：非密钥项完整展示便于核对，密钥项仅头尾
+        preview: maskValue(v, k.secret),
+      }
+    }))
+    res.json({ secrets: items })
+  } catch (err) {
+    console.error('[admin/secrets]', err)
+    res.status(500).json({ error: '密钥清单读取失败' })
+  }
+})
+
+/** PUT /api/admin/secrets/:key —— body {value}（空串=清除覆盖回到 env）；审计仅记掩码 */
+router.put('/secrets/:key', async (req: Request, res: Response) => {
+  const { key } = req.params
+  if (!isManageableKey(key)) {
+    res.status(400).json({ error: '不支持的配置键' })
+    return
+  }
+  const raw = req.body?.value
+  if (typeof raw !== 'string' || raw.length > 2000) {
+    res.status(400).json({ error: 'value 必须是不超过 2000 字符的字符串（空串表示清除覆盖）' })
+    return
+  }
+  const meta = MANAGEABLE_KEYS.find(k => k.key === key)!
+  try {
+    await setRuntimeConfig(key, raw.trim())
+    await audit(req, 'secret.update', 'secret', key, { masked: maskValue(raw.trim(), meta.secret) })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('[admin/secrets/put]', err)
+    res.status(500).json({ error: '密钥保存失败' })
   }
 })
 

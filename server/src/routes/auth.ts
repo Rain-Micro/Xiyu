@@ -87,7 +87,7 @@ router.post('/register', async (req: Request, res: Response) => {
     await seedBuiltinAssistants(user.id, { liu: '琉', sa: '飒', che: '澈', yi: '熠', xi: '汐' })
 
     await markLogin(user.id)
-    const token = signToken({ userId: user.id, role: user.role })
+    const token = await signToken({ userId: user.id, role: user.role })
     res.json({ success: true, token, user: { id: user.id, phone: phone || null, email: email || null, nickname: name, role: user.role } })
   } catch (err) {
     console.error('[auth/register]', err)
@@ -142,14 +142,14 @@ router.post('/login', async (req: Request, res: Response) => {
       res.json({
         success: true,
         restored: true,
-        token: signToken({ userId: user.id, role: user.role }),
+        token: await signToken({ userId: user.id, role: user.role }),
         user: { id: user.id, phone: user.phone, email: user.email, nickname: user.nickname, role: user.role },
       })
       return
     }
 
     await markLogin(user.id)
-    const token = signToken({ userId: user.id, role: user.role })
+    const token = await signToken({ userId: user.id, role: user.role })
     res.json({
       success: true,
       token,
@@ -191,7 +191,7 @@ router.post('/login/sms', async (req: Request, res: Response) => {
       return
     }
     await markLogin(user.id)
-    const token = signToken({ userId: user.id, role: user.role })
+    const token = await signToken({ userId: user.id, role: user.role })
     res.json({ success: true, token, user: { id: user.id, phone: String(phone), email: user.email, nickname: user.nickname, role: user.role } })
   } catch (err) {
     console.error('[auth/login/sms]', err)
