@@ -6,7 +6,9 @@ server/node_modules/
 dist/
 dist-electron/
 server/dist/
-release/
+
+# 发布物（安装包按版本归档于 releases/，不入库；清单见 RELEASES.md）
+releases/
 
 # 环境变量与密钥（只入库 .env.example）
 .env
@@ -37,9 +39,3 @@ Thumbs.db
 
 # Mimosa 安全钩子本地状态
 .mimosa/
-
-# 构建输出（任意输出目录名）
-release2/
-
-# 构建输出（任意输出目录名）
-release3/

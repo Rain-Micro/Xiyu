@@ -56,6 +56,24 @@ npm run electron:build
 | 8080 | OpenSandbox 服务端 | 本机既有设施，**禁止占用** |
 | 5432 | PostgreSQL | 仅容器内/127.0.0.1，不对局域网暴露 |
 
+## 构建与发布
+
+```bash
+# 1) 前端+Electron 产物（注入生产 API 地址）
+VITE_API_URL=http://<服务器>:443 npm run build
+
+# 2) 打包 win-unpacked（验收中间产物）
+npx electron-builder --dir
+
+# 3) asar 字节断言（必须全过再出包，防"旧产物进包"事故）
+node -e "const fs=require('fs');const a='win-unpacked/resources/app.asar';const has=n=>fs.readFileSync(a).indexOf(n)!==-1;console.log(has('startsWith(\"/api/\")'),!has('disableHardwareAcceleration'))"
+
+# 4) Inno 安装包（输出 releases 同级的发布目录）
+"D:/Program_files/Inno Setup 6/ISCC.exe" /DMyAppVersion=x.y.z deploy/windows/qiyu.iss
+```
+
+发布物按版本归档于 `releases/<版本>/`（不入库）；版本状态与哈希见 `RELEASES.md`；变更明细见 `CHANGELOG.md`。
+
 ## 规范
 
 - **提交**：Conventional Commits（`feat:`/`fix:`/`chore:`/`docs:`/`refactor:`/`ci:`…）。
