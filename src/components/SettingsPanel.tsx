@@ -256,12 +256,12 @@ export default function SettingsPanel() {
                 <button
                   onClick={() => {
                     setSettingsOpen(false)
-                    navigate('/admin/customer-service')
+                    navigate('/admin')
                   }}
-                  className="w-full py-2.5 text-white bg-gradient-to-r from-primary-500 to-purple-500 rounded-lg hover:from-primary-600 hover:to-purple-600 transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-2.5 text-white bg-primary-500 rounded-xl shadow-clay transition-transform hover:-rotate-2 hover:shadow-hard flex items-center justify-center gap-2"
                 >
                   <Shield className="w-4 h-4" />
-                  客服管理
+                  管理后台
                 </button>
               )}
               <button

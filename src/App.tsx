@@ -29,6 +29,7 @@ import HealthReminder from '@/components/HealthReminder'
 import FirstTimeGuide from '@/components/FirstTimeGuide'
 import FavoritesPage from '@/pages/FavoritesPage'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import AdminConsolePage from '@/pages/AdminConsolePage'
 
 
 function App() {
@@ -158,6 +159,26 @@ function App() {
     return () => window.removeEventListener('qiyu:session-expired', onExpired)
   }, [])
 
+  // 登录后拉取全站公告（后台配置），有则通知展示一次
+  useEffect(() => {
+    if (!isLoggedIn) return
+    api<{ announcement?: string }>({ path: '/api/announcements' })
+      .then(({ announcement }) => {
+        if (announcement && announcement.trim()) {
+          addNotification({
+            id: `announcement-${Date.now()}`,
+            type: 'info',
+            title: '平台公告',
+            message: announcement.trim().slice(0, 200),
+            timestamp: Date.now(),
+            read: false,
+            duration: 10000,
+          })
+        }
+      })
+      .catch(() => { /* 静默 */ })
+  }, [isLoggedIn, addNotification])
+
   // 残留登录态直达：仅应用冷启动时判定一次（zustand persist 同步水合，挂载即得真值）。
   // 不做成响应式：登录动作本身置 isLoggedIn=true 时若还在 '/'，会把带引导弹窗的
   // WelcomePage（助手选择/新手询问）抢先卸载——新账号将不再被询问偏好（R3 引入的回归）
@@ -270,6 +291,7 @@ function App() {
           <Route path="/change-password" element={<ChangePasswordPage />} />
           <Route path="/customer-service" element={<CustomerServicePage />} />
           <Route path="/admin/customer-service" element={<AdminCustomerServicePage />} />
+          <Route path="/admin" element={<AdminConsolePage />} />
           <Route path="/create-character" element={<CreateCharacterPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/character-settings" element={<CharacterSettingsPage />} />
