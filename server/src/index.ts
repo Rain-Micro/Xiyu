@@ -14,7 +14,9 @@ import charactersRoutes from './routes/characters'
 import smsRoutes from './routes/sms'
 import speechRoutes from './routes/speech'
 import voiceRoutes from './routes/voice'
-import { requireAuth } from './auth'
+import adminRoutes from './routes/admin'
+import { query } from './db'
+import { requireAuth, requireAdmin } from './auth'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -45,6 +47,33 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes) // 登录/注册/验证码本身即认证前置
 app.use('/api/sms', smsRoutes)
 
+// 版本源（热更新提示式检查的默认目标；app_config 优先，env 兜底；兼容 GitHub releases API 响应形态）
+app.get('/api/version', async (_req, res) => {
+  try {
+    const get = async (key: string, fallback: string): Promise<string> => {
+      const r = await query<{ value: unknown }>('SELECT value FROM app_config WHERE key=$1', [key])
+      const v = r.rows[0]?.value
+      return typeof v === 'string' && v ? v : fallback
+    }
+    const tag = await get('latest_version', process.env.LATEST_VERSION || '')
+    const url = await get('download_url', process.env.DOWNLOAD_URL || '')
+    res.json(tag ? { tag_name: tag, html_url: url } : {})
+  } catch {
+    res.json({})
+  }
+})
+
+// 公告（客户端登录后拉取展示；空对象表示无公告）
+app.get('/api/announcements', async (_req, res) => {
+  try {
+    const r = await query<{ value: unknown }>("SELECT value FROM app_config WHERE key='announcement'")
+    const v = r.rows[0]?.value
+    res.json(typeof v === 'string' ? { announcement: v } : {})
+  } catch {
+    res.json({})
+  }
+})
+
 // 头像文件（受保护：文件名白名单防穿越；JWT 经 Bearer 头或 ?t= 查询参数，后者供 <img> 使用）
 app.get('/api/avatars/:file', requireAuth, (req, res) => {
   const file = String(req.params.file || '')
@@ -68,6 +97,9 @@ app.use('/api/chat', chatRoutes) // 路由内部已逐端点挂 requireAuth
 app.use('/api/customer-service', customerServiceRoutes) // 同上（含 requireAdmin）
 app.use('/api/speech', requireAuth, speechRoutes)
 app.use('/api/voice', requireAuth, voiceRoutes)
+
+// ─── 管理后台（JWT + role=admin） ───
+app.use('/api/admin', requireAuth, requireAdmin, adminRoutes)
 
 // 404 兜底
 app.use((req, res) => {

@@ -57,10 +57,11 @@ router.post('/register', async (req: Request, res: Response) => {
   }
 
   try {
-    if (phone) {
-      const ok = await verifySmsCode(phone, String(smsCode || ''))
+    // 手机与邮箱注册 alike 必须校验验证码（此前邮箱注册跳过校验的缺口）
+    if (phone || email) {
+      const ok = await verifySmsCode(String(phone || email), String(smsCode || ''))
       if (!ok) {
-        res.status(400).json({ error: '短信验证码错误或已过期' })
+        res.status(400).json({ error: '验证码错误或已过期' })
         return
       }
     }
@@ -106,13 +107,17 @@ router.post('/login', async (req: Request, res: Response) => {
   }
   try {
     const found = await query<{
-      id: string; role: 'user' | 'admin'; password_hash: string;
+      id: string; role: 'user' | 'admin'; password_hash: string; status: string;
       phone: string | null; email: string | null; nickname: string
     }>(
-      'SELECT id, role, password_hash, phone, email, nickname FROM users WHERE phone=$1 OR email=$1 LIMIT 1',
+      'SELECT id, role, status, password_hash, phone, email, nickname FROM users WHERE phone=$1 OR email=$1 LIMIT 1',
       [String(account).trim()],
     )
     const user = found.rows[0]
+    if (user && user.status === 'banned') {
+      res.status(403).json({ error: '账号已被封禁，如有疑问请联系客服' })
+      return
+    }
     if (!user || !verifyPassword(password, user.password_hash)) {
       res.status(401).json({ error: '账号或密码错误' })
       return
@@ -172,11 +177,15 @@ router.post('/login/sms', async (req: Request, res: Response) => {
       res.status(401).json({ error: '短信验证码错误或已过期' })
       return
     }
-    const found = await query<{ id: string; role: 'user' | 'admin'; nickname: string; email: string | null }>(
-      'SELECT id, role, nickname, email FROM users WHERE phone=$1 LIMIT 1',
+    const found = await query<{ id: string; role: 'user' | 'admin'; status: string; nickname: string; email: string | null }>(
+      'SELECT id, role, status, nickname, email FROM users WHERE phone=$1 LIMIT 1',
       [String(phone)],
     )
     const user = found.rows[0]
+    if (user && user.status === 'banned') {
+      res.status(403).json({ error: '账号已被封禁，如有疑问请联系客服' })
+      return
+    }
     if (!user) {
       res.status(404).json({ error: '该手机号尚未注册' })
       return

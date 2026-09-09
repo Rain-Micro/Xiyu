@@ -69,11 +69,15 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       res.status(401).json({ error: '账号已在其他设备登录，当前会话已下线' })
       return
     }
-    // 角色以库中现值为准（管理员变更即时生效，旧 token 提权/降权不残留）
-    const { rows: roleRows } = await query<{ role: 'user' | 'admin' }>(
-      'SELECT role FROM users WHERE id=$1',
+    // 角色与状态以库中现值为准（管理员变更即时生效；封禁即拒）
+    const { rows: roleRows } = await query<{ role: 'user' | 'admin'; status: string }>(
+      'SELECT role, status FROM users WHERE id=$1',
       [payload.userId],
     )
+    if (roleRows[0]?.status === 'banned') {
+      res.status(403).json({ error: '账号已被封禁，如有疑问请联系客服' })
+      return
+    }
     req.auth = { userId: payload.userId, role: roleRows[0]?.role ?? payload.role }
     next()
   } catch {
