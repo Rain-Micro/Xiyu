@@ -5,6 +5,23 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.2.0] - 2026-09-09 · 管理后台版
+
+### Added 新增
+- **管理后台**（`/admin`，管理员角色可见，设置面板入口）：
+  - 用户管理：模糊搜索/分页、封禁与解封（封禁即全会话下线并拦截登录）、重置密码（临时密码仅回显一次）
+  - 数据看板：注册/活跃/消息/角色/收藏/封禁总览，14 日注册·消息·DAU 趋势图，热门角色 Top10
+  - 系统配置：全站公告（客户端登录后通知展示）、最新版本号+下载页地址（喂给热更新检查）、客服通知邮箱
+  - 操作审计：全部管理写操作落 audit_logs，可按动作过滤分页查询
+- 服务端公开 `GET /api/version`（app_config 优先、env 兜底，兼容 GitHub releases 响应形态）——热更新提示式检查的自建版本源
+- 数据库迁移 003：users.status/banned、audit_logs、app_config
+- 开发规范与代码安全约束文档（docs/development-guide.md、docs/security-constraints.md）
+
+### Changed 变更
+- 邮箱注册补验证码校验（此前仅手机号校验，邮箱注册无验证的缺口）
+- 管理员入口从"客服管理"升级为"管理后台"（客服会话移入后台内）
+- 短信通道（Spug）代码就绪，生产切换 SMS_MODE=real 待 Spug 控制台将服务器 IP 加入白名单
+
 ## [2.1.0] - 2026-09-09 · 内测版（Clay 设计系统）
 
 **仅客户端，服务端无任何改动。** 按 Clay 设计系统整体换肤（用户提供的 DESIGN.md）。
