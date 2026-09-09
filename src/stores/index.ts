@@ -130,9 +130,11 @@ export const useCharacterStore = create<CharacterState>((set) => ({
   setCurrentCharacter: (character) => set({ currentCharacter: character }),
   addCharacter: (character) => {
     set((state) => ({ characters: [...state.characters, character] }))
+    // 本地 Dexie 与云端双写：loadCharacters 以 Dexie 为数据源，漏写本地会导致
+    // 任何重载（进用户模块/收藏页/重启）后角色"消失"（仅存云端）
+    db.characters.put(character).catch(() => {})
     createCharacterAPI(character, character.userId).catch((err) => {
-      console.error('[CharacterStore] 云端创建失败，回退到本地:', err)
-      db.characters.add(character)
+      console.error('[CharacterStore] 云端创建失败（已保留本地）:', err)
     })
   },
   updateCharacter: (character) => {
@@ -143,6 +145,7 @@ export const useCharacterStore = create<CharacterState>((set) => ({
       currentCharacter:
         state.currentCharacter?.id === character.id ? character : state.currentCharacter,
     }))
+    db.characters.put(character).catch(() => {})
     updateCharacterAPI(character).catch((err) => {
       console.error('[CharacterStore] 云端更新失败，回退到本地:', err)
       db.characters.update(character.id, character)
@@ -207,6 +210,18 @@ export const useCharacterStore = create<CharacterState>((set) => ({
           await createCharacterAPI(char, userId)
         } catch {
           // ignore individual sync errors
+        }
+      }
+
+      // 反向合并：云端有、本地 Dexie 无的自定义角色 → 写回本地。
+      // （历史上云端创建成功不落 Dexie，导致任何重载都会让这些角色"消失"）
+      const localIds = new Set(localChars.map((c) => c.id))
+      const cloudOnly = cloudCharsRaw.filter((c) => !localIds.has(c.id) && !c.isAssistant)
+      for (const char of cloudOnly) {
+        try {
+          await db.characters.put(char)
+        } catch {
+          // ignore individual merge errors
         }
       }
 

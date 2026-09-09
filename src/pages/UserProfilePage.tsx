@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore, useUIStore } from '@/stores'
 import { sanitizeDate } from '@/utils/dateFormat'
-import { api } from '@/services/apiClient'
+import { api, avatarSrc } from '@/services/apiClient'
 import ChangeContactModal from '@/components/ChangeContactModal'
 
 function getAvatarColor(name: string): string {
@@ -276,7 +276,7 @@ export default function UserProfilePage() {
         <div className="flex flex-col items-center">
           <div className="relative w-24 h-24 rounded-full shadow-lg overflow-hidden">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="头像" className="w-full h-full object-cover" />
+              <img src={avatarSrc(avatarUrl)} alt="头像" className="w-full h-full object-cover" />
             ) : (
               <div
                 className="w-full h-full flex items-center justify-center text-white text-3xl font-bold"
@@ -410,7 +410,7 @@ export default function UserProfilePage() {
                 placeholder="选择日期"
                 value={birthday}
                 onChange={(e) => setBirthday(e.target.value)}
-                className="input-field flex-1"
+                className={`input-field flex-1 ${!birthday ? 'date-empty' : ''}`}
               />
             </div>
             <button

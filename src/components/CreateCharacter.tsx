@@ -265,14 +265,14 @@ export default function CreateCharacter() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">角色生日</label>
-                <div className="relative">
+                <div className="date-input-wrapper">
                   {!profile.birthday && <span className="date-input-placeholder">选择日期</span>}
                   <input
                     type="date"
                     placeholder="选择日期"
                     value={profile.birthday || ''}
                     onChange={(e) => setProfile({ ...profile, birthday: e.target.value || undefined })}
-                    className="input-field w-full"
+                    className={`input-field w-full ${!profile.birthday ? 'date-empty' : ''}`}
                   />
                   <Calendar className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>

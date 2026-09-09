@@ -50,16 +50,11 @@
     color: #6b7280;
   }
 
-  /* 隐藏空值时原生日期段的"年/月/日"文字。
-     不用 [value=""] 属性选择器：React 受控组件设置的是 value property，
-     attribute 未必存在导致规则失效（占位重叠的根因之一） */
-  input[type="date"]:not(:focus):invalid::-webkit-datetime-edit {
+  /* 空值且未聚焦：隐藏原生日期段的"年/月/日"空态文字，只显示自定义占位 span。
+     date-empty class 由 React 受控值派生（空值时加上）——不依赖 :invalid/:valid
+     伪类（无 required 的空 date 恒为 :valid，伪类方案永不生效） */
+  input[type="date"].date-empty:not(:focus)::-webkit-datetime-edit {
     color: transparent;
-  }
-
-  input[type="date"]:focus::-webkit-datetime-edit,
-  input[type="date"]:valid::-webkit-datetime-edit {
-    color: inherit;
   }
 
   .btn-primary {

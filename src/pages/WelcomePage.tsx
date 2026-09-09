@@ -13,7 +13,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { useAuthStore, useUIStore, useCharacterStore, useSettingsStore } from '@/stores'
-import { api, ApiError } from '@/services/apiClient'
+import { api, ApiError, avatarSrc } from '@/services/apiClient'
 import { register as authRegister, login as authLogin, loginBySms } from '@/services/authAPI'
 import { sendVerifyCode as sendSmsCode, verifyCode as verifySmsCode } from '@/services/smsAPI'
 import { ASSISTANT_SEEDS, createAssistantCharacter } from '@/services/assistantData'
@@ -408,6 +408,10 @@ export default function WelcomePage() {
   // 进入登录视图时初始化（仅依赖 view，避免循环）
   useEffect(() => {
     if (view === 'login') {
+      // 清理注册视图残留的验证码通知
+      useUIStore.getState().notifications
+        .filter((n) => n.id.startsWith('verify-code-register-'))
+        .forEach((n) => removeNotification(n.id))
       const saved = localStorage.getItem('remembered-credentials')
       if (saved) {
         try {
@@ -537,9 +541,8 @@ export default function WelcomePage() {
           read: false,
           duration: 0,
         })
-        if (mode === 'register') {
-          setVerifyNotificationId(notificationId)
-        }
+        // 登录/注册模式都登记通知 id，确保后续（登录成功/切换视图）能清理
+        setVerifyNotificationId(notificationId)
         setMockVerifyCode(result.mockCode)
       } else {
         addNotification({
@@ -722,6 +725,15 @@ export default function WelcomePage() {
         read: false,
         duration: 3000,
       })
+    }
+
+    // 登录成功：清理残留的验证码类通知（duration:0 常驻，不清会一直挂在右下角）
+    useUIStore.getState().notifications
+      .filter((n) => n.id.startsWith('verify-code-'))
+      .forEach((n) => removeNotification(n.id))
+    if (verifyNotificationId) {
+      removeNotification(verifyNotificationId)
+      setVerifyNotificationId(null)
     }
 
     // ─── 经 REST 加载角色（云端优先，本地种子补齐） ──────────────────────
@@ -1062,7 +1074,7 @@ export default function WelcomePage() {
               >
                 {selectedUser ? (
                   selectedUser.avatarUrl ? (
-                    <img src={selectedUser.avatarUrl} alt="头像" className="w-full h-full object-cover" />
+                    <img src={avatarSrc(selectedUser.avatarUrl)} alt="头像" className="w-full h-full object-cover" />
                   ) : (
                     getUserDisplayName(selectedUser).charAt(0)
                   )
@@ -1218,7 +1230,7 @@ export default function WelcomePage() {
                                 style={{ backgroundColor: getAvatarColor(getUserDisplayName(user)) }}
                               >
                                 {user.avatarUrl ? (
-                                  <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                  <img src={avatarSrc(user.avatarUrl)} alt="" className="w-full h-full object-cover" />
                                 ) : (
                                   getUserDisplayName(user).charAt(0)
                                 )}

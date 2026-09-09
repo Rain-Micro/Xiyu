@@ -2087,8 +2087,8 @@ function InputArea({
     const file = e.target.files?.[0]
     if (!file) return
 
-    // 如果是图片，走图片流程
-    if (file.type.startsWith('image/')) {
+    // 如果是图片，走图片流程（MIME 为空时按扩展名兜底：截图/剪贴板文件常无 MIME）
+    if (file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(file.name)) {
       handleImageSelect(e)
       return
     }

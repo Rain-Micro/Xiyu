@@ -158,12 +158,17 @@ function App() {
     return () => window.removeEventListener('qiyu:session-expired', onExpired)
   }, [])
 
-  // 残留登录态直达：登录后直接关窗重开（未点退出）时，路由停在 '/' 则自动回主页
+  // 残留登录态直达：仅应用冷启动时判定一次（zustand persist 同步水合，挂载即得真值）。
+  // 不做成响应式：登录动作本身置 isLoggedIn=true 时若还在 '/'，会把带引导弹窗的
+  // WelcomePage（助手选择/新手询问）抢先卸载——新账号将不再被询问偏好（R3 引入的回归）
   useEffect(() => {
-    if (isLoggedIn && user && location.pathname === '/') {
+    const { isLoggedIn: logged, user: u } = useAuthStore.getState()
+    const atRoot = window.location.hash === '' || window.location.hash === '#' || window.location.hash === '#/'
+    if (logged && u && atRoot) {
       navigate('/main', { replace: true })
     }
-  }, [isLoggedIn, user, location.pathname, navigate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 主题切换
   useEffect(() => {

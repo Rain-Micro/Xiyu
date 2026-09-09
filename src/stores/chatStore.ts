@@ -165,12 +165,44 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: async (characterId: string, content: string, type: 'text' | 'image' | 'file' | 'voice' = 'text', fileInfo?: Message['fileInfo'], voiceInfo?: Message['voiceInfo']) => {
+    // 0. 解析附件（图片压缩+OCR / 文档），先于消息入栏：
+    //    OCR 文本并入 content，使角色可读图，且内容随消息落库——历史/重生成/转发不再丢失图片语义
+    let imageContent: { base64: string; mimeType: string } | undefined
+    let documentContent: { fileType: 'docx' | 'pdf' | 'txt'; base64: string } | undefined
+    let effectiveContent = content
+    try {
+      if (fileInfo?.url && type === 'image') {
+        const compressedUrl = await compressImage(fileInfo.url)
+        const parsedCompressed = parseDataUrl(compressedUrl)
+        if (parsedCompressed) {
+          imageContent = parsedCompressed
+        }
+        const ocrResult = await recognizeImage(compressedUrl, { timeout: 15000 })
+        const text = ocrResult.success
+          ? (ocrResult.text || '').trim()
+          : (ocrResult.timedOut ? '[图片识别超时]' : '')
+        if (text) {
+          effectiveContent = content + '\n[图片识别内容]\n' + text
+        }
+      } else if (fileInfo?.url && type === 'file') {
+        const parsed = parseDataUrl(fileInfo.url)
+        if (parsed) {
+          const fileType = getDocumentFileType(parsed.mimeType, fileInfo.name)
+          if (fileType) {
+            documentContent = { fileType, base64: parsed.base64 }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Chat] 附件解析/OCR 失败，按原内容发送:', err)
+    }
+
     // 1. 添加用户消息
     const userMessage: Message = {
       id: crypto.randomUUID(),
       characterId,
       role: 'user',
-      content,
+      content: effectiveContent,
       timestamp: Date.now(),
       type,
       fileInfo,
@@ -178,16 +210,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
     get().addMessage(characterId, userMessage)
 
-    // 存储用户消息到 Supabase（异步，不阻塞前端）
+    // 存储用户消息到云端（异步，不阻塞前端）
     const user = useAuthStore.getState().user
     if (user) {
-      sendMessageToAPI(user.id, characterId, 'user', content).catch((err) => {
+      sendMessageToAPI(user.id, characterId, 'user', effectiveContent).catch((err) => {
         console.error('[Chat] 存储用户消息失败:', err)
       })
     }
 
     // 2. 更新角色状态
-    get().updateCharacterStatus(characterId, content)
+    get().updateCharacterStatus(characterId, effectiveContent)
 
     // 3. 显示正在输入状态
     set({ isTyping: true })
@@ -202,39 +234,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     let aiSuccess = false
     let wasAborted = false
 
-    // 解析附件内容（图片/文档）
-    let imageContent: { base64: string; mimeType: string } | undefined
-    let documentContent: { fileType: 'docx' | 'pdf' | 'txt'; base64: string } | undefined
-    let ocrText: string | undefined
-    if (fileInfo?.url) {
-      const parsed = parseDataUrl(fileInfo.url)
-      if (parsed) {
-        if (type === 'image') {
-          // 压缩图片后再 OCR
-          const compressedUrl = await compressImage(fileInfo.url)
-          const parsedCompressed = parseDataUrl(compressedUrl)
-          if (parsedCompressed) {
-            imageContent = parsedCompressed
-          }
-          const ocrResult = await recognizeImage(compressedUrl, { timeout: 30000 })
-          if (ocrResult.success) {
-            ocrText = ocrResult.text
-          } else if (ocrResult.timedOut) {
-            ocrText = '[图片识别超时]'
-          }
-        } else if (type === 'file') {
-          const fileType = getDocumentFileType(parsed.mimeType, fileInfo.name)
-          if (fileType) {
-            documentContent = { fileType, base64: parsed.base64 }
-          }
-        }
-      }
-    }
-
     try {
       if (user) {
         const profile = getCharacterProfile(characterId)
-        replyContent = await getAIResponse(characterId, user.id, content, documentContent, imageContent, ocrText, controller.signal, profile)
+        replyContent = await getAIResponse(characterId, user.id, effectiveContent, documentContent, imageContent, undefined, controller.signal, profile)
         aiSuccess = true
       } else {
         replyContent = PRESET_REPLIES[Math.floor(Math.random() * PRESET_REPLIES.length)]

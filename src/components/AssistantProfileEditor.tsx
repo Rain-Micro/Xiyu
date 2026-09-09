@@ -218,7 +218,7 @@ export default function AssistantProfileEditor({ character, onClose }: Assistant
                 placeholder="选择日期"
                 value={editData.anniversary || ''}
                 onChange={(e) => setEditData({ ...editData, anniversary: e.target.value })}
-                className="input-field"
+                className={`input-field ${!editData.anniversary ? 'date-empty' : ''}`}
               />
             </div>
           </div>

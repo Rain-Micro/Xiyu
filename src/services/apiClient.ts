@@ -25,6 +25,20 @@ export function authHeaders(): Record<string, string> {
   return headers
 }
 
+/**
+ * 头像等 <img> 直链转换：服务端相对路径(/api/avatars/x) → 带 token 的完整 URL。
+ * <img> 无法携带 Authorization 头，服务端头像端点同时接受 ?t=<jwt> 查询参数。
+ * dataURL/空值原样返回。
+ */
+export function avatarSrc(url: string | null | undefined): string {
+  if (!url) return ''
+  if (url.startsWith('/api/')) {
+    const token = getToken()
+    return token ? `${API_BASE}${url}?t=${encodeURIComponent(token)}` : `${API_BASE}${url}`
+  }
+  return url
+}
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) {

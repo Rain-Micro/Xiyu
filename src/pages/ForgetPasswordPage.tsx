@@ -62,6 +62,14 @@ export default function ForgetPasswordPage() {
   const [success, setSuccess] = useState(false)
   const [notificationId, setNotificationId] = useState<string | null>(null)
 
+  // 卸载时清理本页常驻的验证码通知（duration:0，中途退出不清会一直挂全局）
+  useEffect(() => () => {
+    useUIStore.getState().notifications
+      .filter((n) => n.id.startsWith('forget-verify-'))
+      .forEach((n) => removeNotification(n.id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (countdown <= 0) return
     const timer = setInterval(() => {

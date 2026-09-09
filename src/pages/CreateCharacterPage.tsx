@@ -1374,7 +1374,7 @@ export default function CreateCharacterPage() {
                         placeholder="选择日期"
                         value={formData.birthday}
                         onChange={(e) => handleFieldChange('birthday', e.target.value)}
-                        className={`input-field ${fieldErrorClass('birthday')}`}
+                        className={`input-field ${fieldErrorClass('birthday')} ${!formData.birthday ? 'date-empty' : ''}`}
                       />
                     </div>
                   </div>
@@ -1481,7 +1481,7 @@ export default function CreateCharacterPage() {
                         placeholder="选择日期"
                         value={formData.anniversary}
                         onChange={(e) => handleFieldChange('anniversary', e.target.value)}
-                        className="input-field"
+                        className={`input-field ${!formData.anniversary ? 'date-empty' : ''}`}
                       />
                     </div>
                   </div>
