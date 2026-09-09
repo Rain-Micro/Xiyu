@@ -13,8 +13,11 @@ jobs:
   build-windows:
     name: 构建并发布 Windows 安装包
     runs-on: windows-latest
+    # 写入权限：gh release create 需要（仓库私有 + 默认只读时必配）
     permissions:
       contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -42,8 +45,6 @@ jobs:
 
       - name: 创建/更新 Release 并上传安装包
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${GITHUB_REF_NAME}"
           ASSET=$(ls release/*.exe | head -1)
