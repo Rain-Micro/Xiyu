@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Users, BarChart3, Settings2, ScrollText, Headphones, Search, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Users, BarChart3, Settings2, ScrollText, Headphones, Search, ChevronLeft, ChevronRight, KeyRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '@/services/apiClient'
 import { useAuthStore, useUIStore } from '@/stores'
 
-type Tab = 'users' | 'dashboard' | 'config' | 'audit'
+type Tab = 'users' | 'dashboard' | 'config' | 'secrets' | 'audit'
 
 interface AdminUserRow {
   id: string
@@ -22,6 +22,7 @@ const tabs: Array<{ id: Tab; label: string; icon: typeof Users }> = [
   { id: 'users', label: '用户管理', icon: Users },
   { id: 'dashboard', label: '数据看板', icon: BarChart3 },
   { id: 'config', label: '系统配置', icon: Settings2 },
+  { id: 'secrets', label: '服务密钥', icon: KeyRound },
   { id: 'audit', label: '操作审计', icon: ScrollText },
 ]
 
@@ -360,6 +361,103 @@ function AuditTab() {
   )
 }
 
+// ─── 服务密钥标签 ───────────────────────────────────────────
+interface SecretRow {
+  key: string
+  label: string
+  hint: string | null
+  secret: boolean
+  configured: boolean
+  source: 'config' | 'env' | null
+  preview: string | null
+}
+
+function SecretsTab() {
+  const { addNotification } = useUIStore()
+  const [rows, setRows] = useState<SecretRow[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [input, setInput] = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const data = await api<{ secrets: SecretRow[] }>({ path: '/api/admin/secrets' })
+      setRows(data.secrets)
+    } catch { /* ignore */ } finally {
+      setLoaded(true)
+    }
+  }, [])
+
+  useEffect(() => { void load() }, [load])
+
+  const save = async (key: string) => {
+    try {
+      await api({ method: 'PUT', path: `/api/admin/secrets/${encodeURIComponent(key)}`, body: { value: input } })
+      addNotification({ id: `sec-${key}-${Date.now()}`, type: 'success', title: '已保存', message: input === '' ? `${key} 已清除覆盖，回到环境变量配置` : `${key} 已更新（约 5 秒内生效）`, timestamp: Date.now(), read: false, duration: 3500 })
+      setEditing(null)
+      setInput('')
+      void load()
+    } catch (err) {
+      window.alert(err instanceof ApiError ? err.message : '保存失败')
+    }
+  }
+
+  return (
+    <div className="space-y-3 max-w-3xl">
+      <div className="card">
+        <p className="text-sm text-gray-500 leading-relaxed">
+          三方服务密钥的运行时管理：修改即时生效（JWT 密钥除外，约 5 秒后全部会话失效需重新登录）。
+          密钥类仅回显头尾掩码，全值只存服务端；非密钥类完整显示便于核对。
+          <span className="font-semibold text-gray-700"> 清空并保存 = 清除覆盖，回退到服务器 .env 配置。</span>
+          更新操作会记入审计日志（仅掩码）。
+        </p>
+      </div>
+      {rows.map(r => (
+        <div key={r.key} className="card">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold">{r.label}</span>
+                {r.secret && <span className="px-1.5 py-0.5 rounded bg-ube-300/50 text-[10px] font-semibold">密钥</span>}
+                <span className="font-mono text-xs text-gray-400">{r.key}</span>
+              </div>
+              {r.hint && <p className="text-xs text-gray-500 mt-0.5">{r.hint}</p>}
+              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                {r.configured
+                  ? <span className="font-mono text-sm text-gray-700">{r.preview}</span>
+                  : <span className="text-sm text-pomegranate-400">未配置</span>}
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${r.source === 'config' ? 'bg-matcha-300/60' : r.source === 'env' ? 'bg-lemon-400/60' : 'bg-gray-200 text-gray-500'}`}>
+                  {r.source === 'config' ? '后台覆盖' : r.source === 'env' ? '.env' : ''}
+                </span>
+              </div>
+            </div>
+            {editing === r.key ? (
+              <div className="flex gap-2 items-center">
+                <input
+                  autoFocus
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void save(r.key); if (e.key === 'Escape') { setEditing(null); setInput('') } }}
+                  placeholder={r.secret ? '输入新密钥（留空并保存=清除）' : '输入新值'}
+                  type={r.secret ? 'password' : 'text'}
+                  className="input-field w-64"
+                />
+                <button className="btn-primary text-sm" onClick={() => save(r.key)}>保存</button>
+                <button className="btn-ghost text-sm" onClick={() => { setEditing(null); setInput('') }}>取消</button>
+              </div>
+            ) : (
+              <button className="btn-ghost text-sm shrink-0" onClick={() => { setEditing(r.key); setInput('') }}>
+                更新
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+      {loaded && rows.length === 0 && <div className="card text-center text-gray-400">无可用配置项</div>}
+    </div>
+  )
+}
+
 // ─── 控制台主页 ─────────────────────────────────────────────
 export default function AdminConsolePage() {
   const navigate = useNavigate()
@@ -409,6 +507,7 @@ export default function AdminConsolePage() {
         {tab === 'users' && <UsersTab />}
         {tab === 'dashboard' && <DashboardTab />}
         {tab === 'config' && <ConfigTab />}
+        {tab === 'secrets' && <SecretsTab />}
         {tab === 'audit' && <AuditTab />}
       </div>
     </motion.div>

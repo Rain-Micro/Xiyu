@@ -29,6 +29,7 @@ import HealthReminder from '@/components/HealthReminder'
 import FirstTimeGuide from '@/components/FirstTimeGuide'
 import FavoritesPage from '@/pages/FavoritesPage'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import RequireAuth from '@/components/RequireAuth'
 import AdminConsolePage from '@/pages/AdminConsolePage'
 
 
@@ -292,20 +293,20 @@ function App() {
         <AnimatePresence mode="wait" key={refreshKey}>
         <Routes location={location} key={location.pathname}>
           <Route path="/" element={<WelcomePage />} />
-          <Route path="/main" element={<MainPage />} />
           <Route path="/forgot-password" element={<ForgetPasswordPage />} />
-          <Route path="/profile" element={<UserProfilePage />} />
-          <Route path="/change-password" element={<ChangePasswordPage />} />
-          <Route path="/customer-service" element={<CustomerServicePage />} />
-          <Route path="/admin/customer-service" element={<AdminCustomerServicePage />} />
-          <Route path="/admin" element={<AdminConsolePage />} />
-          <Route path="/create-character" element={<CreateCharacterPage />} />
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/character-settings" element={<CharacterSettingsPage />} />
-          <Route path="/search-chat" element={<SearchChatPage />} />
-          <Route path="/user-module" element={<UserModulePage />} />
-          <Route path="/user-module/favorites" element={<FavoritesPage />} />
-          <Route path="/user-module/preferences" element={<UserPreferencesPage />} />
+          <Route path="/main" element={<RequireAuth><MainPage /></RequireAuth>} />
+          <Route path="/profile" element={<RequireAuth><UserProfilePage /></RequireAuth>} />
+          <Route path="/change-password" element={<RequireAuth><ChangePasswordPage /></RequireAuth>} />
+          <Route path="/customer-service" element={<RequireAuth><CustomerServicePage /></RequireAuth>} />
+          <Route path="/admin/customer-service" element={<RequireAuth><AdminCustomerServicePage /></RequireAuth>} />
+          <Route path="/admin" element={<RequireAuth><AdminConsolePage /></RequireAuth>} />
+          <Route path="/create-character" element={<RequireAuth><CreateCharacterPage /></RequireAuth>} />
+          <Route path="/chat" element={<RequireAuth><ChatPage /></RequireAuth>} />
+          <Route path="/character-settings" element={<RequireAuth><CharacterSettingsPage /></RequireAuth>} />
+          <Route path="/search-chat" element={<RequireAuth><SearchChatPage /></RequireAuth>} />
+          <Route path="/user-module" element={<RequireAuth><UserModulePage /></RequireAuth>} />
+          <Route path="/user-module/favorites" element={<RequireAuth><FavoritesPage /></RequireAuth>} />
+          <Route path="/user-module/preferences" element={<RequireAuth><UserPreferencesPage /></RequireAuth>} />
         </Routes>
       </AnimatePresence>
       </ErrorBoundary>
