@@ -97,6 +97,12 @@ router.patch('/users/:id/status', async (req: Request, res: Response) => {
     res.status(400).json({ error: '不能封禁自己' })
     return
   }
+  // 内置管理员（+00Root）受保护：不可封禁/解封；其密钥经「重置密码」更换
+  const rootCheck = await query<{ username: string | null }>('SELECT username FROM users WHERE id=$1', [id])
+  if (rootCheck.rows[0]?.username === '+00Root') {
+    res.status(400).json({ error: '内置管理员账号受保护，不可封禁；如需更换密钥请用「重置密码」' })
+    return
+  }
   try {
     let rowCount = 0
     if (banned) {

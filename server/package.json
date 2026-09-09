@@ -1,6 +1,6 @@
 {
   "name": "qiyu-server",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "栖屿数字人平台后端服务",
   "main": "dist/index.js",
   "scripts": {

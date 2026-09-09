@@ -108,9 +108,11 @@ router.post('/login', async (req: Request, res: Response) => {
   try {
     const found = await query<{
       id: string; role: 'user' | 'admin'; password_hash: string; status: string;
-      phone: string | null; email: string | null; nickname: string
+      phone: string | null; email: string | null; nickname: string; username: string | null
     }>(
-      'SELECT id, role, status, password_hash, phone, email, nickname FROM users WHERE phone=$1 OR email=$1 LIMIT 1',
+      // account 可为 手机号 / 邮箱 / 账号名（username，如内置管理员 +00Root）；
+      // 三列同一占位符 + LIMIT 1：格式互斥（手机/邮箱/命名账号不重叠），冲突场景取先建者
+      'SELECT id, role, status, password_hash, phone, email, nickname, username FROM users WHERE phone=$1 OR email=$1 OR username=$1 LIMIT 1',
       [String(account).trim()],
     )
     const user = found.rows[0]
