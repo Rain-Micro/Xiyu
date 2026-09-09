@@ -1,0 +1,50 @@
+# 自动发布：推送 v* 标签 → Windows 构建 NSIS 安装包 → 上传 GitHub Release
+# 触发后无需任何手动操作；产物即 https://github.com/Liu-bit264/xiyu/releases 的资产
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    name: 构建并发布 Windows 安装包
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 使用 Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: 安装依赖
+        run: npm ci --no-audit --no-fund
+
+      - name: 构建（类型检查 + vite + Electron 产物）
+        run: npm run build
+        env:
+          # 生产 API 地址（与手动发布保持一致；如需改，在此与 README 同步）
+          VITE_API_URL: http://101.132.47.12:443
+
+      - name: 打包 NSIS 安装包
+        run: npx electron-builder
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+
+      - name: 创建/更新 Release 并上传安装包
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          ASSET=$(ls release/*.exe | head -1)
+          gh release create "$TAG" "$ASSET" \
+            --title "栖屿数字人平台 ${TAG#v}" \
+            --notes "自动发布（GitHub Actions）：${TAG#v}。安装包 SHA-256 见 releases/SHA256SUMS.txt 与 RELEASES.md；变更明细见 CHANGELOG.md。"
