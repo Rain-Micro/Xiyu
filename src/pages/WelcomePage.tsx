@@ -15,7 +15,7 @@ import {
 import { useAuthStore, useUIStore, useCharacterStore, useSettingsStore } from '@/stores'
 import { api, ApiError, avatarSrc } from '@/services/apiClient'
 import { register as authRegister, login as authLogin, loginBySms } from '@/services/authAPI'
-import { sendVerifyCode as sendSmsCode, verifyCode as verifySmsCode } from '@/services/smsAPI'
+import { sendVerifyCode as sendSmsCode } from '@/services/smsAPI'
 import { ASSISTANT_SEEDS, createAssistantCharacter } from '@/services/assistantData'
 import { db } from '@/services/db'
 import type { User, Character } from '@/types'
@@ -272,7 +272,7 @@ export default function WelcomePage() {
   const [rememberMe, setRememberMe] = useState(false)
 
   const [verifyCodeSent, setVerifyCodeSent] = useState(false)
-  const [mockVerifyCode, setMockVerifyCode] = useState('')
+  const [, setMockVerifyCode] = useState<string | null>(null) // devCode 联调显示（不参与本地校验）
   const [countdown, setCountdown] = useState(0)
   const [isSending, setIsSending] = useState(false)
   const [registerSuccess, setRegisterSuccess] = useState(false)
@@ -796,14 +796,8 @@ export default function WelcomePage() {
       setError('请先获取验证码')
       return
     }
-    if (formData.verifyCode !== mockVerifyCode) {
-      try {
-        await verifySmsCode(contactValue, formData.verifyCode)
-      } catch {
-        setError('验证码错误或已过期')
-        return
-      }
-    }
+    // 验证码由服务端在注册接口内统一校验并消费（一次性）。
+    // 此处不再预校验——否则码被标记 used，注册接口二次校验必失败（真实短信模式必现"验证码错误或已过期"）。
 
     // 注册（服务端做查重、bcrypt 哈希与内置助手播种）
     try {
@@ -972,12 +966,12 @@ export default function WelcomePage() {
 
   return (
     <div className="h-full w-full flex flex-col items-center justify-center relative overflow-hidden">
-      {/* 背景装饰（Clay：去玻璃光球，改燕麦虚线框装饰） */}
+      {/* 背景装饰（Soft UI：柔和粉彩色块，低饱和无模糊） */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-16 left-16 w-56 h-56 border border-dashed border-oat rounded-3xl rotate-6" />
-        <div className="absolute bottom-16 right-16 w-72 h-72 border border-dashed border-oat-light rounded-3xl -rotate-3" />
-        <div className="absolute top-24 right-24 w-20 h-20 bg-matcha-300 rounded-full" />
-        <div className="absolute bottom-28 left-28 w-12 h-12 bg-lemon-400 rounded-full" />
+        <div className="absolute top-16 left-16 w-56 h-56 bg-softblue-100 rounded-3xl rotate-6" />
+        <div className="absolute bottom-16 right-16 w-72 h-72 bg-softpink-100 rounded-3xl -rotate-3" />
+        <div className="absolute top-24 right-24 w-16 h-16 bg-softgreen-200 rounded-full" />
+        <div className="absolute bottom-28 left-28 w-10 h-10 bg-softpink-200 rounded-full" />
       </div>
 
       {/* 左上角返回按钮 */}

@@ -5,6 +5,22 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.4.0] - 2026-09-09 · Soft UI 重设计版
+
+### Fixed 修复
+- **验证码"错误或已过期"（真实短信模式必现）**：注册页前端预校验把验证码标记为已使用，
+  注册接口二次校验时必然失败（双重消费）。现改为服务端注册接口内统一校验消费一次
+
+### Changed 变更
+- **UI 重设计（Soft UI Evolution，按 DESIGN.md）**：
+  - 色板：柔和粉彩（Soft Blue `#87CEEB` / Soft Pink `#FFB6C1` / Soft Green `#90EE90`）+ 柔蓝 primary——
+    移除上一版大绿大紫（Matcha/Ube 高饱和对撞、色相不匹配）
+  - 阴影：改进阴影（比 flat 柔和、比拟物清晰的三层 soft shadow），移除硬偏移/clay 阴影
+  - 动效：**取消按钮点击倾斜（rotateZ/-rotate）**，改为位移+亮度微变的简单过渡（250ms）；
+    hover 位移收敛为 `translateY(-4px)` 级别
+  - 焦点可见（WCAG AA+）：全局 2px 柔蓝焦点环；暗色模式全覆盖
+  - 画布冷调白 `#f7f9fc`；卡片 16px 圆角；移除燕麦边框/黑色系标签等 Clay 残留
+
 ## [2.3.1] - 2026-09-09 · 服务端版（客户端无改动，沿用 2.3.0 安装包）
 
 ### Added 新增

@@ -41,23 +41,21 @@ export default function MainPage() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setCharacterSelectorOpen(true)}
-            className="flex flex-col items-center gap-4 px-12 py-10 rounded-3xl bg-matcha-800 text-white shadow-clay transition-transform hover:rotate-2 hover:shadow-hard"
+            className="flex flex-col items-center gap-4 px-12 py-10 rounded-2xl bg-softblue-100 text-gray-700 shadow-soft-md transition-all hover:shadow-soft-lg hover:-translate-y-1"
           >
-            <Users className="w-16 h-16" />
-            <span className="label-uppercase text-matcha-300">Contacts</span>
+            <Users className="w-16 h-16 text-primary-600" />
             <span className="text-xl font-bold">选择角色</span>
           </motion.button>
 
           {/* 创建角色 */}
           <motion.button
             id="btn-create-character"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => navigate('/create-character')}
-            className="flex flex-col items-center gap-4 px-12 py-10 rounded-3xl bg-ube-800 text-white shadow-clay transition-transform hover:-rotate-2 hover:shadow-hard"
+            className="flex flex-col items-center gap-4 px-12 py-10 rounded-2xl bg-softpink-100 text-gray-700 shadow-soft-md transition-all hover:shadow-soft-lg hover:-translate-y-1"
           >
-            <UserPlus className="w-16 h-16" />
-            <span className="label-uppercase text-ube-300">Create</span>
+            <UserPlus className="w-16 h-16 text-softpink-600" />
             <span className="text-xl font-bold">创建角色</span>
           </motion.button>
         </div>

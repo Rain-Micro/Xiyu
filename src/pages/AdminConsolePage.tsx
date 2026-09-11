@@ -110,7 +110,7 @@ function UsersTab() {
       <div className="card p-0 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-gray-500 border-b border-oat">
+            <tr className="text-left text-gray-500 border-b border-gray-100">
               <th className="px-4 py-3 font-medium">用户</th>
               <th className="px-4 py-3 font-medium">账号</th>
               <th className="px-4 py-3 font-medium">角色</th>
@@ -121,14 +121,14 @@ function UsersTab() {
           </thead>
           <tbody>
             {rows.map((u) => (
-              <tr key={u.id} className="border-b border-oat-light last:border-0">
+              <tr key={u.id} className="border-b border-gray-100 last:border-0">
                 <td className="px-4 py-3 font-medium">{u.nickname}</td>
                 <td className="px-4 py-3 text-gray-500">{maskAccount(u)}</td>
                 <td className="px-4 py-3">{u.role === 'admin' ? <span className="label-uppercase text-primary-600">Admin</span> : '用户'}</td>
                 <td className="px-4 py-3">
                   {u.status === 'banned'
-                    ? <span className="px-2 py-0.5 rounded bg-pomegranate-400 text-white text-xs">已封禁</span>
-                    : <span className="px-2 py-0.5 rounded bg-matcha-300 text-black text-xs">正常</span>}
+                    ? <span className="px-2 py-0.5 rounded bg-softpink-400 text-white text-xs">已封禁</span>
+                    : <span className="px-2 py-0.5 rounded bg-softgreen-200 text-gray-700 text-xs">正常</span>}
                 </td>
                 <td className="px-4 py-3 text-gray-500">{fmtDate(u.created_at)}</td>
                 <td className="px-4 py-3 text-right space-x-2 whitespace-nowrap">
@@ -170,10 +170,10 @@ function DashboardTab() {
   const cards: Array<[string, number | undefined, string]> = [
     ['注册用户', overview?.users, 'text-primary-600'],
     ['7 日活跃', overview?.active7d, 'text-slushie-800'],
-    ['消息总量', overview?.messages, 'text-ube-800'],
+    ['消息总量', overview?.messages, 'text-primary-700'],
     ['自建角色', overview?.characters, 'text-lemon-700'],
     ['收藏总量', overview?.favorites, 'text-blueberry-800'],
-    ['封禁用户', overview?.banned, 'text-pomegranate-400'],
+    ['封禁用户', overview?.banned, 'text-danger'],
   ]
 
   const BarChart = ({ title, data, color }: { title: string; data: Array<{ date: string; value: number }> | undefined; color: string }) => {
@@ -208,15 +208,15 @@ function DashboardTab() {
       </div>
       <div className="grid md:grid-cols-3 gap-4">
         <BarChart title="每日注册" data={trend?.registrations} color="bg-primary-500" />
-        <BarChart title="每日消息" data={trend?.messages} color="bg-ube-800" />
-        <BarChart title="DAU" data={trend?.dau} color="bg-lemon-500" />
+        <BarChart title="每日消息" data={trend?.messages} color="bg-primary-700" />
+        <BarChart title="DAU" data={trend?.dau} color="bg-softpink-400" />
       </div>
       <div className="card p-0 overflow-hidden">
-        <div className="px-4 py-3 border-b border-oat label-uppercase text-gray-400">热门角色（消息量 Top10）</div>
+        <div className="px-4 py-3 border-b border-gray-100 label-uppercase text-gray-400">热门角色（消息量 Top10）</div>
         <table className="w-full text-sm">
           <tbody>
             {top.map((t, i) => (
-              <tr key={t.characterId} className="border-b border-oat-light last:border-0">
+              <tr key={t.characterId} className="border-b border-gray-100 last:border-0">
                 <td className="px-4 py-2.5 w-10 text-gray-400">{i + 1}</td>
                 <td className="px-4 py-2.5 font-medium">{t.name || t.characterId}</td>
                 <td className="px-4 py-2.5 text-right text-gray-500">{t.count} 条 · 最近 {fmtDate(t.lastAt)}</td>
@@ -315,7 +315,7 @@ function AuditTab() {
   useEffect(() => { void load(1, '') }, [load])
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const actionColor = (a: string) => a.startsWith('user.ban') ? 'text-pomegranate-400' : a.startsWith('config') ? 'text-ube-800' : 'text-gray-600'
+  const actionColor = (a: string) => a.startsWith('user.ban') ? 'text-danger' : a.startsWith('config') ? 'text-primary-700' : 'text-gray-600'
 
   return (
     <div className="space-y-4">
@@ -328,7 +328,7 @@ function AuditTab() {
       <div className="card p-0 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-gray-500 border-b border-oat">
+            <tr className="text-left text-gray-500 border-b border-gray-100">
               <th className="px-4 py-3 font-medium">时间</th>
               <th className="px-4 py-3 font-medium">管理员</th>
               <th className="px-4 py-3 font-medium">动作</th>
@@ -338,7 +338,7 @@ function AuditTab() {
           </thead>
           <tbody>
             {logs.map(l => (
-              <tr key={l.id} className="border-b border-oat-light last:border-0">
+              <tr key={l.id} className="border-b border-gray-100 last:border-0">
                 <td className="px-4 py-2.5 text-gray-500 whitespace-nowrap">{fmtDate(l.created_at)}</td>
                 <td className="px-4 py-2.5">{l.admin_nickname || '—'}</td>
                 <td className={`px-4 py-2.5 font-mono text-xs font-semibold ${actionColor(l.action)}`}>{l.action}</td>
@@ -418,15 +418,15 @@ function SecretsTab() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold">{r.label}</span>
-                {r.secret && <span className="px-1.5 py-0.5 rounded bg-ube-300/50 text-[10px] font-semibold">密钥</span>}
+                {r.secret && <span className="px-1.5 py-0.5 rounded bg-softpink-200 text-[10px] font-semibold">密钥</span>}
                 <span className="font-mono text-xs text-gray-400">{r.key}</span>
               </div>
               {r.hint && <p className="text-xs text-gray-500 mt-0.5">{r.hint}</p>}
               <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                 {r.configured
                   ? <span className="font-mono text-sm text-gray-700">{r.preview}</span>
-                  : <span className="text-sm text-pomegranate-400">未配置</span>}
-                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${r.source === 'config' ? 'bg-matcha-300/60' : r.source === 'env' ? 'bg-lemon-400/60' : 'bg-gray-200 text-gray-500'}`}>
+                  : <span className="text-sm text-danger">未配置</span>}
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${r.source === 'config' ? 'bg-softgreen-200' : r.source === 'env' ? 'bg-softblue-100' : 'bg-gray-200 text-gray-500'}`}>
                   {r.source === 'config' ? '后台覆盖' : r.source === 'env' ? '.env' : ''}
                 </span>
               </div>
@@ -475,7 +475,7 @@ export default function AdminConsolePage() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full w-full bg-cream dark:bg-gray-900 overflow-y-auto scrollbar-thin">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full w-full bg-canvas dark:bg-gray-900 overflow-y-auto scrollbar-thin">
       <div className="max-w-6xl mx-auto px-6 py-6">
         {/* 头部 */}
         <div className="flex items-center justify-between mb-6">
@@ -496,8 +496,8 @@ export default function AdminConsolePage() {
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all ${tab === t.id
-                ? 'bg-black text-white border-black shadow-clay'
-                : 'bg-white text-black border-oat hover:border-black'}`}
+                ? 'bg-primary-500 text-white border-primary-500 shadow-soft'
+                : 'bg-surface text-gray-600 border-gray-200 hover:border-primary-400'}`}
             >
               <t.icon className="w-4 h-4 inline mr-1.5" />{t.label}
             </button>

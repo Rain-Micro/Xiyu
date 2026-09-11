@@ -243,7 +243,7 @@ function App() {
       <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2">
         <button
           onClick={() => setRefreshConfirmOpen(true)}
-          className="p-2 rounded-full bg-white dark:bg-gray-800 border border-oat dark:border-gray-600 shadow-clay hover:shadow-hard-sm transition-shadow"
+          className="p-2 rounded-full bg-surface dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-soft hover:shadow-soft-md transition-all"
           title="刷新"
         >
           <RefreshCw className="w-5 h-5 text-gray-600 dark:text-gray-400" />
@@ -251,7 +251,7 @@ function App() {
         {isLoggedIn && location.pathname !== '/main' && (
           <button
             onClick={() => navigate('/main')}
-            className="p-2 rounded-full bg-white dark:bg-gray-800 border border-oat dark:border-gray-600 shadow-clay hover:shadow-hard-sm transition-shadow"
+            className="p-2 rounded-full bg-surface dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-soft hover:shadow-soft-md transition-all"
             title="回到主页"
           >
             <Home className="w-5 h-5 text-primary-600 dark:text-primary-400" />
@@ -262,7 +262,7 @@ function App() {
             <button
               onClick={() => setTutorialOpen(true)}
               data-guide="tutorial-button"
-              className="p-2 rounded-full bg-white dark:bg-gray-800 border border-oat dark:border-gray-600 shadow-clay hover:shadow-hard-sm transition-shadow"
+              className="p-2 rounded-full bg-surface dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-soft hover:shadow-soft-md transition-all"
               title="教程"
             >
               <BookOpen className="w-5 h-5 text-primary-600 dark:text-primary-400" />
@@ -270,7 +270,7 @@ function App() {
             <button
               id="btn-user"
               onClick={() => navigate('/user-module')}
-              className="p-2 rounded-full bg-white dark:bg-gray-800 border border-oat dark:border-gray-600 shadow-clay hover:shadow-hard-sm transition-shadow"
+              className="p-2 rounded-full bg-surface dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-soft hover:shadow-soft-md transition-all"
               title="用户"
             >
               <User className="w-5 h-5 text-primary-600 dark:text-primary-400" />
@@ -280,7 +280,7 @@ function App() {
         <button
           id="btn-settings"
           onClick={() => setSettingsOpen(true)}
-          className="p-2 rounded-full bg-white dark:bg-gray-800 border border-oat dark:border-gray-600 shadow-clay hover:shadow-hard-sm transition-shadow"
+          className="p-2 rounded-full bg-surface dark:bg-gray-800 border border-gray-200 dark:border-gray-600 shadow-soft hover:shadow-soft-md transition-all"
           title="设置"
         >
           <Settings className="w-5 h-5 text-primary-600 dark:text-primary-400" />

@@ -258,7 +258,7 @@ export default function SettingsPanel() {
                     setSettingsOpen(false)
                     navigate('/admin')
                   }}
-                  className="w-full py-2.5 text-white bg-primary-500 rounded-xl shadow-clay transition-transform hover:-rotate-2 hover:shadow-hard flex items-center justify-center gap-2"
+                  className="w-full py-2.5 text-white bg-primary-500 rounded-xl shadow-soft hover:shadow-soft-md transition-all flex items-center justify-center gap-2"
                 >
                   <Shield className="w-4 h-4" />
                   管理后台
