@@ -41,7 +41,8 @@
 
   /* 按钮：柔和过渡（250ms）、颜色/亮度微变，无倾斜 */
   .btn-primary {
-    @apply px-4 py-2 bg-primary-500 text-white rounded-xl shadow-soft font-medium transition-all duration-250;
+    @apply px-4 py-2 bg-primary-500 text-white rounded-xl shadow-soft font-medium transition-all;
+    transition-duration: 250ms;
   }
   .btn-primary:hover {
     @apply bg-primary-600 shadow-soft-md;
@@ -51,7 +52,8 @@
   }
 
   .btn-secondary {
-    @apply px-4 py-2 bg-surface text-gray-700 border border-gray-200 rounded-xl shadow-soft font-medium transition-all duration-250;
+    @apply px-4 py-2 bg-surface text-gray-700 border border-gray-200 rounded-xl shadow-soft font-medium transition-all;
+    transition-duration: 250ms;
   }
   .btn-secondary:hover {
     @apply bg-gray-50 shadow-soft-md border-gray-300;
@@ -66,7 +68,8 @@
 
   /* 幽灵按钮：轻底色反馈 */
   .btn-ghost {
-    @apply px-3 py-1.5 bg-transparent text-gray-600 border border-transparent rounded-lg font-medium transition-all duration-250;
+    @apply px-3 py-1.5 bg-transparent text-gray-600 border border-transparent rounded-lg font-medium transition-all;
+    transition-duration: 250ms;
   }
   .btn-ghost:hover {
     @apply bg-primary-50 text-primary-700;
@@ -74,7 +77,8 @@
 
   /* 输入：柔和边 + 柔蓝焦点环（无 outline-offset 阴影堆叠） */
   .input-field {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-xl bg-surface text-gray-800 transition-colors duration-250;
+    @apply w-full px-3 py-2 border border-gray-300 rounded-xl bg-surface text-gray-800 transition-colors;
+    transition-duration: 250ms;
   }
   .input-field:focus {
     @apply outline-none border-primary-400 ring-2 ring-primary-200;
