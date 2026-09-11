@@ -1,0 +1,154 @@
+@import '@fontsource/space-grotesk/400.css';
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/600.css';
+@import '@fontsource/space-grotesk/700.css';
+@import '@fontsource/space-mono/400.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    /* Clay：暖奶油画布 + 墨黑文字（不允许冷灰） */
+    @apply bg-cream text-black antialiased;
+    font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  }
+
+  .dark body {
+    @apply bg-gray-900 text-gray-100;
+  }
+}
+
+@layer components {
+  /* 白卡 + 燕麦边 + clay 阴影（原玻璃拟态重定向为 Clay 卡面） */
+  .glass-panel {
+    @apply bg-white border border-oat shadow-clay;
+  }
+
+  .dark .glass-panel {
+    @apply bg-gray-800 border-gray-700;
+  }
+
+  /* Clay 签名按钮：悬浮旋转 + 跳起 + 硬偏移阴影 */
+  .btn-primary {
+    @apply px-4 py-2 bg-primary-500 text-white rounded-xl shadow-clay font-medium transition-transform duration-150;
+  }
+  .btn-primary:hover {
+    transform: rotateZ(-8deg) translateY(-20%);
+    @apply bg-primary-600 shadow-hard;
+  }
+  .btn-primary:active {
+    @apply scale-95;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-white text-black border border-oat rounded-xl shadow-clay font-medium transition-transform duration-150;
+  }
+  .btn-secondary:hover {
+    transform: rotateZ(-8deg) translateY(-20%);
+    @apply shadow-hard;
+  }
+  .btn-secondary:active {
+    @apply scale-95;
+  }
+
+  .dark .btn-secondary {
+    @apply bg-gray-800 text-gray-100 border-gray-600;
+  }
+
+  /* 幽灵描边按钮：悬浮染龙果色 */
+  .btn-ghost {
+    @apply px-3 py-1.5 bg-transparent text-black border rounded font-medium transition-all duration-150;
+    border-color: #717989;
+  }
+  .btn-ghost:hover {
+    transform: rotateZ(-8deg) translateY(-15%);
+    @apply bg-dragonfruit text-white shadow-hard-sm;
+  }
+
+  /* 输入：细边 + 4px 圆角 + 蓝色焦点环 */
+  .input-field {
+    @apply w-full px-3 py-2 border rounded bg-white text-black focus:outline-none focus:border-transparent;
+    border-color: #717989;
+    border-radius: 4px;
+  }
+  .input-field:focus {
+    outline: rgb(20, 110, 245) solid 2px;
+  }
+
+  .dark .input-field {
+    @apply bg-gray-800 text-gray-100 border-gray-600;
+  }
+
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear {
+    display: none;
+  }
+
+  /* 卡片：白底/燕麦边/24px 圆角/clay 阴影 */
+  .card {
+    @apply bg-white rounded-2xl shadow-clay border border-oat p-6;
+  }
+
+  .dark .card {
+    @apply bg-gray-800 border-gray-700;
+  }
+
+  /* 大写标签（寻路系统）：12px/600/1.08px 字距 */
+  .label-uppercase {
+    @apply text-xs font-semibold uppercase;
+    letter-spacing: 1.08px;
+  }
+
+  /* 日期选择占位（受控值驱动 date-empty class） */
+  .date-input-wrapper {
+    position: relative;
+  }
+
+  .date-input-placeholder {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9f9b93;
+    pointer-events: none;
+    font-size: 0.875rem;
+    z-index: 1;
+  }
+
+  /* 开始选择（聚焦输入框内）即隐藏自定义占位 */
+  .date-input-wrapper:focus-within .date-input-placeholder {
+    display: none;
+  }
+
+  .dark .date-input-placeholder {
+    color: #6b7280;
+  }
+
+  input[type="date"].date-empty:not(:focus)::-webkit-datetime-edit {
+    color: transparent;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(154, 147, 134, 0.6) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(154, 147, 134, 0.6);
+    border-radius: 3px;
+  }
+}

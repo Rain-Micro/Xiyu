@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live2D vtube.json 配置测试</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; display: flex; height: 100vh; }
+    #left { width: 400px; min-width: 400px; background: #16213e; display: flex; flex-direction: column; }
+    #canvas-container { flex: 1; position: relative; min-height: 400px; }
+    #right { flex: 1; padding: 20px; overflow-y: auto; }
+    h1 { font-size: 18px; padding: 15px 20px; border-bottom: 1px solid #333; }
+    h2 { font-size: 15px; margin: 15px 0 10px; color: #8ecae6; }
+    .log { background: #0d1b2a; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; line-height: 1.6; }
+    .log .info { color: #8ecae6; }
+    .log .warn { color: #ffb703; }
+    .log .error { color: #e63946; }
+    .log .success { color: #2a9d8f; }
+    .status { padding: 8px 12px; border-radius: 4px; display: inline-block; font-size: 13px; margin: 10px 0; }
+    .status.loading { background: #ffb703; color: #000; }
+    .status.ready { background: #2a9d8f; color: #fff; }
+    .status.error { background: #e63946; color: #fff; }
+    .exp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
+    .exp-btn { padding: 8px 12px; background: #2196f3; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; transition: background 0.2s; }
+    .exp-btn:hover { background: #1976d2; }
+    .exp-btn:disabled { background: #555; cursor: not-allowed; }
+    .config-info { background: #0d1b2a; padding: 12px; border-radius: 6px; font-size: 13px; line-height: 1.8; }
+    .config-info span { color: #8ecae6; }
+    #model-canvas { width: 100%; height: 100%; display: block; }
+  </style>
+</head>
+<body>
+  <div id="left">
+    <h1>Live2D 模型预览</h1>
+    <div id="canvas-container">
+      <canvas id="model-canvas"></canvas>
+      <div id="status-text" class="status loading">加载中...</div>
+    </div>
+  </div>
+  <div id="right">
+    <h1>vtube.json 配置测试</h1>
+
+    <h2>配置加载状态</h2>
+    <div id="config-info" class="config-info">
+      <div>vtube.json: <span id="vtube-status">未加载</span></div>
+      <div>位置偏移: <span id="pos-info">-</span></div>
+      <div>缩放比例: <span id="scale-info">-</span></div>
+      <div>表情映射数: <span id="exp-count">0</span></div>
+    </div>
+
+    <h2>表情触发测试</h2>
+    <p style="font-size: 12px; color: #888; margin-bottom: 8px;">点击按钮触发表情（通过 vtube.json 映射名称 -> model3.json 原始名）</p>
+    <div id="exp-buttons" class="exp-grid">
+      <p style="color: #888; grid-column: 1/-1;">模型加载后显示表情按钮...</p>
+    </div>
+
+    <h2>控制台日志</h2>
+    <div id="log" class="log"></div>
+  </div>
+
+  <!-- Cubism Core -->
+  <script src="/lib/live2dcubismcore.min.js"></script>
+
+  <script type="module">
+    const MODEL_PATH = '/models/006/006rikai.model3.json'
+    const VTUBE_PATH = '/models/006/006rikai.vtube.json'
+
+    const logEl = document.getElementById('log')
+    const statusEl = document.getElementById('status-text')
+    const vtubeStatusEl = document.getElementById('vtube-status')
+    const posInfoEl = document.getElementById('pos-info')
+    const scaleInfoEl = document.getElementById('scale-info')
+    const expCountEl = document.getElementById('exp-count')
+    const expButtonsEl = document.getElementById('exp-buttons')
+
+    function log(msg, type = 'info') {
+      const line = document.createElement('div')
+      line.className = type
+      const time = new Date().toLocaleTimeString()
+      line.textContent = `[${time}] ${msg}`
+      logEl.appendChild(line)
+      logEl.scrollTop = logEl.scrollHeight
+      console.log(`[Test] ${msg}`)
+    }
+
+    function extractPosition(config) {
+      if (config.SavedModelPosition?.Position) {
+        const pos = config.SavedModelPosition.Position
+        if (typeof pos.x === 'number' && typeof pos.y === 'number') {
+          return { x: pos.x, y: pos.y }
+        }
+      }
+      if (config.modelPosition) return { x: config.modelPosition.x, y: config.modelPosition.y }
+      if (config.modelOffset) return { x: config.modelOffset.x, y: config.modelOffset.y }
+      return null
+    }
+
+    function extractScale(config) {
+      if (config.SavedModelPosition?.Scale) {
+        const s = config.SavedModelPosition.Scale
+        if (typeof s.x === 'number' && typeof s.y === 'number') return (s.x + s.y) / 2
+      }
+      if (typeof config.modelScale === 'number') return config.modelScale
+      if (config.modelScale && typeof config.modelScale === 'object') {
+        return (config.modelScale.x + config.modelScale.y) / 2
+      }
+      return null
+    }
+
+    function extractExpressionMap(config) {
+      const map = {}
+      if (Array.isArray(config.Hotkeys)) {
+        for (const hk of config.Hotkeys) {
+          if (hk.Action === 'ToggleExpression' && hk.Name && hk.File) {
+            map[hk.Name] = hk.File
+          }
+        }
+      }
+      if (Array.isArray(config.expressions)) {
+        for (const exp of config.expressions) {
+          if (exp.name && exp.file) map[exp.name] = exp.file
+        }
+      }
+      return map
+    }
+
+    async function loadVTubeConfig() {
+      try {
+        const resp = await fetch(VTUBE_PATH)
+        if (!resp.ok) {
+          log(`vtube.json 不存在 (HTTP ${resp.status})`, 'warn')
+          vtubeStatusEl.textContent = '不存在（使用默认值）'
+          vtubeStatusEl.style.color = '#ffb703'
+          return null
+        }
+        const config = await resp.json()
+        log('vtube.json 加载成功', 'success')
+        vtubeStatusEl.textContent = '已加载'
+        vtubeStatusEl.style.color = '#2a9d8f'
+
+        const pos = extractPosition(config)
+        const scale = extractScale(config)
+        const expMap = extractExpressionMap(config)
+
+        posInfoEl.textContent = pos ? `x=${pos.x}, y=${pos.y}` : '无偏移'
+        scaleInfoEl.textContent = scale !== null ? scale.toFixed(2) : '默认 (1.0)'
+        expCountEl.textContent = Object.keys(expMap).length
+
+        log(`位置偏移: ${pos ? `x=${pos.x}, y=${pos.y}` : '无'}`)
+        log(`缩放比例: ${scale !== null ? scale : '默认'}`)
+        log(`表情映射: ${Object.keys(expMap).length} 个`, 'success')
+        for (const [name, file] of Object.entries(expMap)) {
+          log(`  ${name} -> ${file}`)
+        }
+
+        return { config, pos, scale, expMap }
+      } catch (err) {
+        log(`vtube.json 加载失败: ${err.message}`, 'error')
+        vtubeStatusEl.textContent = '加载失败（使用默认值）'
+        vtubeStatusEl.style.color = '#e63946'
+        return null
+      }
+    }
+
+    async function main() {
+      log('开始测试 vtube.json 配置加载')
+      log(`模型路径: ${MODEL_PATH}`)
+      log(`vtube.json 路径: ${VTUBE_PATH}`)
+
+      if (!window.Live2DCubismCore) {
+        log('等待 Cubism Core 加载...')
+        for (let i = 0; i < 50; i++) {
+          if (window.Live2DCubismCore) break
+          await new Promise(r => setTimeout(r, 100))
+        }
+      }
+      if (!window.Live2DCubismCore) {
+        log('Cubism Core 未加载!', 'error')
+        statusEl.className = 'status error'
+        statusEl.textContent = 'Cubism Core 加载失败'
+        return
+      }
+      log('Cubism Core 已加载', 'success')
+
+      const vtubePromise = loadVTubeConfig()
+
+      const PIXI = await import('/@id/pixi.js')
+      window.PIXI = PIXI
+      log('PixiJS 已加载')
+
+      const { Live2DModel } = await import('/@id/pixi-live2d-display/cubism4')
+      log('pixi-live2d-display 已加载')
+
+      const canvas = document.getElementById('model-canvas')
+      const container = document.getElementById('canvas-container')
+      const app = new PIXI.Application({
+        view: canvas,
+        width: 400,
+        height: 500,
+        backgroundAlpha: 0,
+        autoDensity: true,
+        resolution: window.devicePixelRatio || 1,
+        antialias: true,
+      })
+
+      log('开始加载 Live2D 模型...')
+      const model = await Live2DModel.from(MODEL_PATH)
+      log(`模型加载成功，尺寸: ${model.width} x ${model.height}`, 'success')
+
+      const vtubeResult = await vtubePromise
+
+      const modelWidth = model.width
+      const modelHeight = model.height
+      let scale = Math.min(
+        (400 * 0.85) / modelWidth,
+        (500 * 0.85) / modelHeight
+      )
+
+      if (vtubeResult?.scale !== null && vtubeResult?.scale !== undefined && vtubeResult.scale !== 1.0) {
+        log(`应用 vtube.json 缩放: ${vtubeResult.scale}`)
+        scale *= vtubeResult.scale
+      }
+      model.scale.set(scale)
+
+      let posX = (400 - model.width) / 2
+      let posY = (500 - model.height) / 2 - (500 * 0.05)
+
+      if (vtubeResult?.pos) {
+        log(`应用 vtube.json 位置偏移: x=${vtubeResult.pos.x}, y=${vtubeResult.pos.y}`)
+        posX += vtubeResult.pos.x * 400 * 0.5
+        posY -= vtubeResult.pos.y * 500 * 0.5
+      }
+      model.x = posX
+      model.y = posY
+
+      app.stage.addChild(model)
+      statusEl.className = 'status ready'
+      statusEl.textContent = '模型已加载'
+
+      container.addEventListener('mousemove', (e) => {
+        const rect = container.getBoundingClientRect()
+        model.focus(e.clientX - rect.left, e.clientY - rect.top)
+      })
+      container.addEventListener('mouseleave', () => {
+        model.focus(200, 250)
+      })
+
+      try {
+        model.motion('Idle')
+        log('Idle 动画已播放')
+      } catch {
+        log('模型无 Idle 动画', 'warn')
+      }
+
+      const expMap = vtubeResult?.expMap || {}
+      const modelExpressions = model.internalModel?.settings?.expressions || []
+
+      log(`模型内置表情: ${modelExpressions.length} 个`)
+      for (const e of modelExpressions) {
+        log(`  ${e.Name} (${e.File})`)
+      }
+
+      if (Object.keys(expMap).length > 0) {
+        expButtonsEl.innerHTML = ''
+        for (const [name, file] of Object.entries(expMap)) {
+          const btn = document.createElement('button')
+          btn.className = 'exp-btn'
+          btn.textContent = name
+          btn.onclick = () => {
+            const found = modelExpressions.find(e => e.File === file)
+            if (found) {
+              try {
+                model.expression(found.Name)
+                log(`表情触发: ${name} -> ${found.Name} (${file})`, 'success')
+              } catch (err) {
+                log(`表情触发失败: ${found.Name} - ${err.message}`, 'error')
+              }
+            } else {
+              try {
+                model.expression(name)
+                log(`表情触发: ${name}`, 'success')
+              } catch (err) {
+                log(`表情 "${name}" 不存在`, 'error')
+              }
+            }
+          }
+          expButtonsEl.appendChild(btn)
+        }
+      }
+
+      log('测试完成！所有功能正常。', 'success')
+    }
+
+    main().catch(err => {
+      log(`致命错误: ${err.message}`, 'error')
+      console.error(err)
+      statusEl.className = 'status error'
+      statusEl.textContent = '加载失败'
+    })
+  </script>
+</body>
+</html>

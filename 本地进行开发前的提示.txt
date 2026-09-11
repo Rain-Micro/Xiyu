@@ -1,0 +1,6 @@
+若要在本地进行开发，则创建：
+xiyu\
+      |-.deploy-tools\
+      |_digital-human-platform\
+
+项目克隆到digital-human-platform\

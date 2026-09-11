@@ -1,0 +1,70 @@
+name: server
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.gitea/workflows/server.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - '.gitea/workflows/server.yml'
+
+jobs:
+  linux:
+    name: linux 容器 · lint + 类型检查 + 迁移验证
+    runs-on: docker-linux
+    services:
+      postgres:
+        image: docker.m.daocloud.io/library/postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci_pg_pass
+          POSTGRES_DB: qiyu_test
+        ports:
+          - "5432:5432"
+    steps:
+      - name: 检出代码（自持：从本地 Gitea 克隆，不依赖外网 action 市场）
+        shell: bash
+        run: |
+          git init -q .
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 "http://qiyu:${{ secrets.CI_TOKEN }}@${GITHUB_SERVER_URL#http://}/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git checkout -q -f FETCH_HEAD
+      - name: 安装依赖（npm ci，平台独立安装）
+        shell: bash
+        run: cd server && npm ci --no-audit --no-fund
+      - name: ESLint
+        shell: bash
+        run: cd server && npx eslint src --ext .ts --max-warnings 0
+      - name: TypeScript 类型检查
+        shell: bash
+        run: cd server && npx tsc --noEmit
+      - name: 数据库迁移验证（真实 PostgreSQL 16）
+        shell: bash
+        run: cd server && DATABASE_URL="postgresql://postgres:ci_pg_pass@postgres:5432/qiyu_test" node db/migrate.mjs
+
+  windows:
+    name: windows 原生 · 类型检查 + 启动冒烟
+    runs-on: windows-native
+    steps:
+      - name: 检出代码（自持：从本地 Gitea 克隆）
+        shell: bash
+        run: |
+          git init -q .
+          git remote remove origin 2>/dev/null || true
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 "http://qiyu:${{ secrets.CI_TOKEN }}@${GITHUB_SERVER_URL#http://}/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git checkout -q -f FETCH_HEAD
+      - name: Node 版本（要求主版本 24）
+        shell: bash
+        run: node -v
+      - name: 安装依赖（npm ci，平台独立安装）
+        shell: bash
+        run: cd server && npm ci --no-audit --no-fund
+      - name: 编译（tsc）
+        shell: bash
+        run: cd server && npx tsc
+      - name: 启动冒烟（/api/health 探活）
+        shell: bash
+        run: cd server && node scripts/boot-smoke.mjs
